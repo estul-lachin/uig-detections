@@ -1,0 +1,7 @@
+``` Cron Job Added From Interactive Session. Generated from rules/cron_persistence.yml by tools/build.py; do not edit. ```
+index=honeypot sourcetype=cowrie:json
+| rex field=input "(?<inputMatch>\\|\\s*crontab\\b|\\bcrontab\\s+(-\\s*($|[;&|])|\\S+\\.\\w+))"
+| eval inputCondition=if(isnotnull(inputMatch), "true", "false")
+| rex field=input "(?<inputMatch2>>>?\\s*/(etc/cron|var/spool/cron))"
+| eval inputCondition2=if(isnotnull(inputMatch2), "true", "false")
+| search (eventid="cowrie.command.input" inputCondition="true") OR (eventid="cowrie.command.input" inputCondition2="true")

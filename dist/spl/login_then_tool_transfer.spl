@@ -1,0 +1,10 @@
+``` Login Followed By Tool Transfer. Generated from rules/login_then_tool_transfer.yml by tools/build.py; do not edit. ```
+| multisearch
+[ search index=honeypot sourcetype=cowrie:json eventid="cowrie.login.success" | eval event_type="cowrie_login_success" ]
+[ search index=honeypot sourcetype=cowrie:json 
+| rex field=input "(?<inputMatch>\\b(wget|curl|tftp|ftpget|scp)\\b|/dev/tcp/|echo\\s+-[a-z]*e[a-z]*\\s+[\"']?(\\\\x[0-9a-fA-F]{2}){4})"
+| eval inputCondition=if(isnotnull(inputMatch), "true", "false")
+| search (eventid="cowrie.command.input" inputCondition="true") OR eventid IN ("cowrie.session.file_download", "cowrie.session.file_download.failed") | eval event_type="cowrie_tool_transfer" ]
+| bin _time span=5m
+| stats dc(event_type) as event_type_count by _time session
+| search event_type_count >= 2

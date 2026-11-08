@@ -1,0 +1,65 @@
+title: Cowrie Successful Login
+name: cowrie_login_success
+id: e2755e10-e7f4-4ea1-b0be-1627e577ccbe
+status: experimental
+description: Base rule for the login-then-transfer correlation.
+author: Estul Lachin
+date: 2026-11-08
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.login.success
+  condition: selection
+level: informational
+---
+title: Cowrie Tool Transfer Command
+name: cowrie_tool_transfer
+id: eb6b0dea-d89b-4072-8fff-dc734e9aec17
+status: experimental
+description: Base rule for the login-then-transfer correlation. Download tools, /dev/tcp, or a hex-echo write.
+author: Estul Lachin
+date: 2026-11-08
+logsource:
+  product: cowrie
+detection:
+  command:
+    eventid: cowrie.command.input
+    input|re: '\b(wget|curl|tftp|ftpget|scp)\b|/dev/tcp/|echo\s+-[a-z]*e[a-z]*\s+["'']?(\\x[0-9a-fA-F]{2}){4}'
+  download_event:
+    eventid:
+      - cowrie.session.file_download
+      - cowrie.session.file_download.failed
+  condition: command or download_event
+level: informational
+---
+title: Login Followed By Tool Transfer
+id: e0fd1b5d-fea0-406c-8f3e-2a527feea7b0
+status: experimental
+description: |
+  A session logs in and transfers a tool within the same five-minute window: the automated dropper
+  chain of IoT and Linux botnets. Commands only exist after a login in Cowrie, so grouping by session
+  gives the order without an ordered correlation (which the Splunk backend doesn't support). Buckets
+  are fixed, so a chain that straddles a bucket boundary is missed; widen the timespan to trade
+  precision for recall.
+references:
+  - https://attack.mitre.org/techniques/T1078/
+  - https://attack.mitre.org/techniques/T1105/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.initial-access
+  - attack.t1078
+  - attack.command-and-control
+  - attack.t1105
+correlation:
+  type: temporal
+  rules:
+    - cowrie_login_success
+    - cowrie_tool_transfer
+  group-by:
+    - session
+  timespan: 5m
+falsepositives:
+  - Administrators who log in and immediately download software
+level: high

@@ -1,0 +1,2 @@
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"/bin/busybox echo -ne \"\\x7f\\x45\\x4c\\x46\\x01\\x01\" >> .d"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"echo -e '\\x23\\x21\\x2f\\x62\\x69\\x6e' > .k"}

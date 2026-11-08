@@ -1,0 +1,3 @@
+// Network Device CLI Escape Attempt. Generated from rules/network_device_cli_escape.yml by tools/build.py; do not edit.
+Cowrie_CL
+| where eventid =~ "cowrie.command.input" and input matches regex "^\\s*(enable|system|shell|linuxshell|sh)\\s*$"

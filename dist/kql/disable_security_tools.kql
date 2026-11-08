@@ -1,0 +1,3 @@
+// Firewall Or Security Agent Disabled. Generated from rules/disable_security_tools.yml by tools/build.py; do not edit.
+Cowrie_CL
+| where eventid =~ "cowrie.command.input" and input matches regex "\\biptables\\s+(-F|--flush)\\b|\\bufw\\s+disable\\b|\\bsetenforce\\s+0\\b|\\b(systemctl|service)\\s+(stop|disable)\\s+(firewalld|apparmor|aegis|aliyun)|\\b(systemctl|service)\\s+(firewalld|apparmor|aegis|aliyun)\\S*\\s+stop"

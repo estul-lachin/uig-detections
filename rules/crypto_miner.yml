@@ -1,0 +1,23 @@
+title: Cryptocurrency Miner Indicators
+id: 8dd7290a-644a-4db3-8cff-0096442c04de
+status: experimental
+description: |
+  Miner binaries (xmrig, minerd, cpuminer), mining pool protocols (stratum+tcp, stratum+ssl) or pool
+  names in a command. Resource hijacking is the most common goal of attacks on weak SSH passwords.
+references:
+  - https://attack.mitre.org/techniques/T1496/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.impact
+  - attack.t1496
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.command.input
+    input|re: '(?i)\b(xmrig|minerd|cpuminer|cryptonight)\b|stratum\+(tcp|ssl)://|c3pool|nicehash|supportxmr'
+  condition: selection
+falsepositives:
+  - Hosts that are meant to mine (not expected on servers)
+level: high

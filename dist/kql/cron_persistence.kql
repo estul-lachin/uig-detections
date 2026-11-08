@@ -1,0 +1,3 @@
+// Cron Job Added From Interactive Session. Generated from rules/cron_persistence.yml by tools/build.py; do not edit.
+Cowrie_CL
+| where (eventid =~ "cowrie.command.input" and input matches regex "\\|\\s*crontab\\b|\\bcrontab\\s+(-\\s*($|[;&|])|\\S+\\.\\w+)") or (eventid =~ "cowrie.command.input" and input matches regex ">>?\\s*/(etc/cron|var/spool/cron)")

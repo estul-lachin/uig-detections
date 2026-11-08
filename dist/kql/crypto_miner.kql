@@ -1,0 +1,3 @@
+// Cryptocurrency Miner Indicators. Generated from rules/crypto_miner.yml by tools/build.py; do not edit.
+Cowrie_CL
+| where eventid =~ "cowrie.command.input" and input matches regex "(?i)\\b(xmrig|minerd|cpuminer|cryptonight)\\b|stratum\\+(tcp|ssl)://|c3pool|nicehash|supportxmr"

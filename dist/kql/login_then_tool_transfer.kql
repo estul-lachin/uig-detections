@@ -1,0 +1,6 @@
+// Login Followed By Tool Transfer. Generated from rules/login_then_tool_transfer.yml by tools/build.py; do not edit.
+union
+    (Cowrie_CL | where eventid =~ "cowrie.login.success" | extend event_type = "cowrie_login_success"),
+    (Cowrie_CL | where (eventid =~ "cowrie.command.input" and input matches regex "\\b(wget|curl|tftp|ftpget|scp)\\b|/dev/tcp/|echo\\s+-[a-z]*e[a-z]*\\s+[\"']?(\\\\x[0-9a-fA-F]{2}){4}") or (eventid in~ ("cowrie.session.file_download", "cowrie.session.file_download.failed")) | extend event_type = "cowrie_tool_transfer")
+| summarize event_type_count = dcount(event_type) by bin(TimeGenerated, 5m), session
+| where event_type_count >= 2

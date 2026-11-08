@@ -1,0 +1,26 @@
+title: SSH Authorized Keys Modified
+id: 7e15ebb1-6111-4e6c-851b-4f6d36099f0b
+status: experimental
+description: |
+  A command writes to or locks an authorized_keys file. The attacker adds their own public key so they
+  can come back without the password that let them in, often followed by chattr +i so the key can't
+  be removed.
+references:
+  - https://attack.mitre.org/techniques/T1098/004/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.persistence
+  - attack.t1098.004
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.command.input
+    input|contains: authorized_keys
+  write:
+    input|re: '>>?|\b(tee|cp|mv|chattr|sed\s+-i)\b'
+  condition: selection and write
+falsepositives:
+  - Administrators adding keys by hand (verify against change records)
+level: high

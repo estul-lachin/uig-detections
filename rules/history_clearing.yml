@@ -1,0 +1,23 @@
+title: Shell History Cleared Or Disabled
+id: fc6fa16e-8ed1-44c3-b72a-2956acce4304
+status: experimental
+description: |
+  history -c, deleting or truncating .bash_history, unsetting HISTFILE or pointing it at /dev/null:
+  the attacker removes the record of the commands they just ran.
+references:
+  - https://attack.mitre.org/techniques/T1070/003/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.stealth
+  - attack.t1070.003
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.command.input
+    input|re: 'history\s+-c|unset\s+HIST(FILE|SIZE)|HISTFILE=/dev/null|HISTSIZE=0|(\brm\b|>|\bln\s+-sf\s+/dev/null)[^;&|]*\.bash_history'
+  condition: selection
+falsepositives:
+  - Privacy-minded users clearing their own history
+level: medium

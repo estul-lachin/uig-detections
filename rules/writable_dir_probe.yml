@@ -1,0 +1,26 @@
+title: Writable And Executable Directory Probe
+id: 92b9d317-840c-40f1-b833-19392ae8a98d
+status: experimental
+description: |
+  The bot creates an empty dot-file in a directory and runs it with sh, for example
+  `echo > /dev/shm/.b && sh /dev/shm/.b`. It repeats this across /tmp, /var/run, /dev/shm and others to
+  find a directory that is both writable and not mounted noexec, then drops its payload there.
+references:
+  - https://attack.mitre.org/techniques/T1083/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.discovery
+  - attack.t1083
+  - attack.execution
+  - attack.t1059.004
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.command.input
+    input|re: 'echo\s*>\s*\S+/\.\w+\s*&&\s*sh\s+\S+/\.\w+'
+  condition: selection
+falsepositives:
+  - Unlikely; legitimate scripts do not test directories this way
+level: medium

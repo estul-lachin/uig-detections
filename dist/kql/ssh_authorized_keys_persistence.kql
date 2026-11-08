@@ -1,0 +1,3 @@
+// SSH Authorized Keys Modified. Generated from rules/ssh_authorized_keys_persistence.yml by tools/build.py; do not edit.
+Cowrie_CL
+| where (eventid =~ "cowrie.command.input" and input contains "authorized_keys") and input matches regex ">>?|\\b(tee|cp|mv|chattr|sed\\s+-i)\\b"

@@ -1,0 +1,26 @@
+title: Cron Job Added From Interactive Session
+id: 5577b658-fa17-4a11-96ed-dd7251823f3f
+status: experimental
+description: |
+  A session installs a cron job, either through crontab or by writing to /etc/cron* or /var/spool/cron,
+  so the payload restarts after a reboot or after being killed.
+references:
+  - https://attack.mitre.org/techniques/T1053/003/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.persistence
+  - attack.t1053.003
+logsource:
+  product: cowrie
+detection:
+  crontab:
+    eventid: cowrie.command.input
+    input|re: '\|\s*crontab\b|\bcrontab\s+(-\s*($|[;&|])|\S+\.\w+)'
+  files:
+    eventid: cowrie.command.input
+    input|re: '>>?\s*/(etc/cron|var/spool/cron)'
+  condition: crontab or files
+falsepositives:
+  - Administrators scheduling jobs over SSH
+level: high

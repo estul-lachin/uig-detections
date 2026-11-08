@@ -1,0 +1,29 @@
+title: Download And Execute In One Command
+id: 9be2e151-09ea-4bb9-a8da-686525c6de97
+status: experimental
+description: |
+  A single command line fetches a file with wget, curl, tftp or ftpget and runs it: piped into a shell,
+  made executable with chmod +x, or started with sh. This is the core of nearly every Linux botnet
+  dropper. The honeypot blocks outbound connections, so the download fails, but the URL is logged.
+references:
+  - https://attack.mitre.org/techniques/T1105/
+  - https://attack.mitre.org/techniques/T1059/004/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.command-and-control
+  - attack.t1105
+  - attack.execution
+  - attack.t1059.004
+logsource:
+  product: cowrie
+detection:
+  download:
+    eventid: cowrie.command.input
+    input|re: '\b(wget|curl|tftp|ftpget)\b'
+  execute:
+    input|re: '\|\s*(ba)?sh\b|chmod\s+(\+x|[0-7]*7[0-7]*)|[;&]\s*(ba)?sh\s+\S'
+  condition: download and execute
+falsepositives:
+  - Install one-liners (curl ... | sh) run by administrators on real servers
+level: high

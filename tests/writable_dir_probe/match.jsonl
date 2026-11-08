@@ -1,0 +1,2 @@
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"/bin/busybox echo > /dev/shm/.b && sh /dev/shm/.b && cd /dev/shm/"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"echo > /tmp/.x && sh /tmp/.x"}

@@ -1,0 +1,3 @@
+// Download And Execute In One Command. Generated from rules/download_and_execute.yml by tools/build.py; do not edit.
+Cowrie_CL
+| where (eventid =~ "cowrie.command.input" and input matches regex "\\b(wget|curl|tftp|ftpget)\\b") and input matches regex "\\|\\s*(ba)?sh\\b|chmod\\s+(\\+x|[0-7]*7[0-7]*)|[;&]\\s*(ba)?sh\\s+\\S"

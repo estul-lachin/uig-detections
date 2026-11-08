@@ -1,0 +1,4 @@
+pySigma==2.0.2
+pysigma-backend-splunk==3.0.0
+pysigma-backend-kusto==0.4.5
+PyYAML>=6

@@ -1,0 +1,3 @@
+``` Cryptocurrency Miner Indicators. Generated from rules/crypto_miner.yml by tools/build.py; do not edit. ```
+index=honeypot sourcetype=cowrie:json eventid="cowrie.command.input"
+| regex input="(?i)\\b(xmrig|minerd|cpuminer|cryptonight)\\b|stratum\\+(tcp|ssl)://|c3pool|nicehash|supportxmr"

@@ -1,0 +1,4 @@
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"echo -ne \"\\x41\\x42\""}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"echo -ne \"\\x7f\\x45\\x4c\\x46\\x01\""}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"echo -ne \"hello world\" > a"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"printf \"\\x7f\\x45\\x4c\\x46\" > x"}

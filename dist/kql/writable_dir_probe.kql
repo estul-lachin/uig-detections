@@ -1,0 +1,3 @@
+// Writable And Executable Directory Probe. Generated from rules/writable_dir_probe.yml by tools/build.py; do not edit.
+Cowrie_CL
+| where eventid =~ "cowrie.command.input" and input matches regex "echo\\s*>\\s*\\S+/\\.\\w+\\s*&&\\s*sh\\s+\\S+/\\.\\w+"

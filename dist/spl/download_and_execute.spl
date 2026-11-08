@@ -1,0 +1,4 @@
+``` Download And Execute In One Command. Generated from rules/download_and_execute.yml by tools/build.py; do not edit. ```
+index=honeypot sourcetype=cowrie:json eventid="cowrie.command.input"
+| regex input="\\b(wget|curl|tftp|ftpget)\\b"
+| regex input="\\|\\s*(ba)?sh\\b|chmod\\s+(\\+x|[0-7]*7[0-7]*)|[;&]\\s*(ba)?sh\\s+\\S"
