@@ -1,0 +1,49 @@
+{
+  "id": "92b9d317-840c-40f1-b833-19392ae8a98d",
+  "_comment": "Writable And Executable Directory Probe. Generated from rules/writable_dir_probe.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Writable And Executable Directory Probe",
+    "description": "The bot creates an empty dot-file in a directory and runs it with sh, for example `echo > /dev/shm/.b && sh /dev/shm/.b`. It repeats this across /tmp, /var/run, /dev/shm and others to find a directory that is both writable and not mounted noexec, then drops its payload there.",
+    "severity": "Medium",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where eventid =~ \"cowrie.command.input\" and input matches regex \"echo\\\\s*>\\\\s*\\\\S+/\\\\.\\\\w+\\\\s*&&\\\\s*sh\\\\s+\\\\S+/\\\\.\\\\w+\"",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "Discovery",
+      "Execution"
+    ],
+    "techniques": [
+      "T1059",
+      "T1083"
+    ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

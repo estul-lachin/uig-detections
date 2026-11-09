@@ -1,0 +1,43 @@
+{
+  "id": "fc6fa16e-8ed1-44c3-b72a-2956acce4304",
+  "_comment": "Shell History Cleared Or Disabled. Generated from rules/history_clearing.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Shell History Cleared Or Disabled",
+    "description": "history -c, deleting or truncating .bash_history, unsetting HISTFILE or pointing it at /dev/null: the attacker removes the record of the commands they just ran.",
+    "severity": "Medium",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where eventid =~ \"cowrie.command.input\" and input matches regex \"history\\\\s+-c|unset\\\\s+HIST(FILE|SIZE)|HISTFILE=/dev/null|HISTSIZE=0|(\\\\brm\\\\b|>|\\\\bln\\\\s+-sf\\\\s+/dev/null)[^;&|]*\\\\.bash_history\"",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [],
+    "techniques": [],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

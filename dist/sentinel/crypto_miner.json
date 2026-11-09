@@ -1,0 +1,47 @@
+{
+  "id": "8dd7290a-644a-4db3-8cff-0096442c04de",
+  "_comment": "Cryptocurrency Miner Indicators. Generated from rules/crypto_miner.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Cryptocurrency Miner Indicators",
+    "description": "Miner binaries (xmrig, minerd, cpuminer), mining pool protocols (stratum+tcp, stratum+ssl) or pool names in a command. Resource hijacking is the most common goal of attacks on weak SSH passwords.",
+    "severity": "High",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where eventid =~ \"cowrie.command.input\" and input matches regex \"(?i)\\\\b(xmrig|minerd|cpuminer|cryptonight)\\\\b|stratum\\\\+(tcp|ssl)://|c3pool|nicehash|supportxmr\"",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "Impact"
+    ],
+    "techniques": [
+      "T1496"
+    ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "id": "6f1334fc-a6bb-42b6-81f2-0f8ec35050d4",
+  "_comment": "Network Device CLI Escape Attempt. Generated from rules/network_device_cli_escape.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Network Device CLI Escape Attempt",
+    "description": "A Telnet or SSH session sends the bare words that break out of a router or IoT vendor CLI into a Linux shell (enable, system, shell, sh, linuxshell). Mirai-family bots send this sequence blindly to every device before running their payload. On a honeypot it identifies the bot family; on a real device it means someone is trying to reach the underlying OS.",
+    "severity": "Low",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where eventid =~ \"cowrie.command.input\" and input matches regex \"^\\\\s*(enable|system|shell|linuxshell|sh)\\\\s*$\"",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "Execution"
+    ],
+    "techniques": [
+      "T1059"
+    ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

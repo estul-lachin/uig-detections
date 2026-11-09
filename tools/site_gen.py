@@ -138,8 +138,10 @@ def render_index(rules, results):
   <li><strong>Tests</strong>: an evaluator runs the rule on <code>match.jsonl</code> (must fire) and
     <code>nomatch.jsonl</code> (must not)</li>
   <li><strong>Conversion</strong> to SPL and KQL, committed in <code>dist/</code>; CI fails if they're stale</li>
-  <li><strong>Splunk check</strong> (local): the generated SPL runs in Splunk on the same test events and must
-    agree with the evaluator</li>
+  <li><strong>Splunk and Sentinel checks</strong>: the generated SPL runs in Splunk and the KQL in Microsoft
+    Sentinel on the same test events, and both must agree with the evaluator</li>
+  <li><strong>Deploy</strong>: the rules run as Sentinel analytics rules on the live honeypot feed, which
+    arrives every 10 minutes</li>
 </ol>
 
 <h2>ATT&amp;CK coverage</h2>
@@ -194,8 +196,10 @@ def render_rule(rf, result, spl, kql):
 
 <h2>Microsoft Sentinel KQL</h2>
 <pre class="code"><code>{e(kql.strip())}</code></pre>
-<p class="meta">For a custom table <code>Cowrie_CL</code> with Cowrie's field names. Converted, not yet run in
-  Sentinel. <a href="{REPO}/blob/main/dist/kql/{rf.name}.kql">dist/kql/{e(rf.name)}.kql</a></p>
+<p class="meta">For the custom table <code>Cowrie_CL</code>, which has Cowrie's field names. Verified in
+  Microsoft Sentinel against the test events, and deployed there as a scheduled analytics rule that runs hourly
+  on the live honeypot feed. <a href="{REPO}/blob/main/dist/kql/{rf.name}.kql">dist/kql/{e(rf.name)}.kql</a> ·
+  <a href="{REPO}/blob/main/dist/sentinel/{rf.name}.json">analytics rule</a></p>
 """
     desc = m.get("description", "").strip().split(". ")[0]
     return page(f"{m['title']} · Detections · Estul Lachin", body, 2, desc)

@@ -1,0 +1,38 @@
+{
+  "id": "e0fd1b5d-fea0-406c-8f3e-2a527feea7b0",
+  "_comment": "Login Followed By Tool Transfer. Generated from rules/login_then_tool_transfer.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Login Followed By Tool Transfer",
+    "description": "A session logs in and transfers a tool within the same five-minute window: the automated dropper chain of IoT and Linux botnets. Commands only exist after a login in Cowrie, so grouping by session gives the order without an ordered correlation (which the Splunk backend doesn't support). Buckets are fixed, so a chain that straddles a bucket boundary is missed; widen the timespan to trade precision for recall.",
+    "severity": "High",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nunion\n    (CowrieNew | where eventid =~ \"cowrie.login.success\" | extend event_type = \"cowrie_login_success\"),\n    (CowrieNew | where (eventid =~ \"cowrie.command.input\" and input matches regex \"\\\\b(wget|curl|tftp|ftpget|scp)\\\\b|/dev/tcp/|echo\\\\s+-[a-z]*e[a-z]*\\\\s+[\\\"']?(\\\\\\\\x[0-9a-fA-F]{2}){4}\") or (eventid in~ (\"cowrie.session.file_download\", \"cowrie.session.file_download.failed\")) | extend event_type = \"cowrie_tool_transfer\")\n| summarize event_type_count = dcount(event_type) by bin(TimeGenerated, 5m), session\n| where event_type_count >= 2",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "CommandAndControl",
+      "InitialAccess"
+    ],
+    "techniques": [
+      "T1078",
+      "T1105"
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AnyAlert"
+      }
+    }
+  }
+}

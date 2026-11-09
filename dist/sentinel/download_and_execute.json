@@ -1,0 +1,49 @@
+{
+  "id": "9be2e151-09ea-4bb9-a8da-686525c6de97",
+  "_comment": "Download And Execute In One Command. Generated from rules/download_and_execute.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Download And Execute In One Command",
+    "description": "A single command line fetches a file with wget, curl, tftp or ftpget and runs it: piped into a shell, made executable with chmod +x, or started with sh. This is the core of nearly every Linux botnet dropper. The honeypot blocks outbound connections, so the download fails, but the URL is logged.",
+    "severity": "High",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where (eventid =~ \"cowrie.command.input\" and input matches regex \"\\\\b(wget|curl|tftp|ftpget)\\\\b\") and input matches regex \"\\\\|\\\\s*(ba)?sh\\\\b|chmod\\\\s+(\\\\+x|[0-7]*7[0-7]*)|[;&]\\\\s*(ba)?sh\\\\s+\\\\S\"",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "CommandAndControl",
+      "Execution"
+    ],
+    "techniques": [
+      "T1059",
+      "T1105"
+    ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "id": "73bebb72-8d49-45e8-a00d-e6cf48c45581",
+  "_comment": "Firewall Or Security Agent Disabled. Generated from rules/disable_security_tools.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Firewall Or Security Agent Disabled",
+    "description": "The session flushes iptables, disables ufw or SELinux, or stops firewalld, AppArmor or a cloud provider's security agent (Alibaba Cloud's aegis / aliyun-service), clearing the way for the payload and its outbound connections.",
+    "severity": "Medium",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where eventid =~ \"cowrie.command.input\" and input matches regex \"\\\\biptables\\\\s+(-F|--flush)\\\\b|\\\\bufw\\\\s+disable\\\\b|\\\\bsetenforce\\\\s+0\\\\b|\\\\b(systemctl|service)\\\\s+(stop|disable)\\\\s+(firewalld|apparmor|aegis|aliyun)|\\\\b(systemctl|service)\\\\s+(firewalld|apparmor|aegis|aliyun)\\\\S*\\\\s+stop\"",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [],
+    "techniques": [],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

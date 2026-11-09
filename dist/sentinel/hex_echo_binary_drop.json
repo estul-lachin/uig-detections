@@ -1,0 +1,47 @@
+{
+  "id": "e7422729-a8c4-4a2e-a231-6308e91246af",
+  "_comment": "Binary Written With Hex-Escaped Echo. Generated from rules/hex_echo_binary_drop.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Binary Written With Hex-Escaped Echo",
+    "description": "echo -e / echo -ne with \\xNN escapes redirected into a file: the attacker writes a binary or script chunk by chunk because the device has no wget, curl or tftp. A Mirai-style dropper seen on the honeypot wrote an ELF file in 412 such chunks within seconds of logging in.",
+    "severity": "High",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where (eventid =~ \"cowrie.command.input\" and input matches regex \"echo\\\\s+-[a-z]*e[a-z]*\\\\s+[\\\"']?(\\\\\\\\x[0-9a-fA-F]{2}){4}\") and input contains \">\"",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "CommandAndControl"
+    ],
+    "techniques": [
+      "T1105"
+    ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

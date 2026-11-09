@@ -163,7 +163,7 @@ def kql_filter(doc):
     return out[0]
 
 
-def kql_correlation(rf):
+def kql_correlation(rf, table=KQL_TABLE):
     corr = rf.main["correlation"]
     span, by = corr["timespan"], ", ".join(corr.get("group-by", []))
     names = corr["rules"]
@@ -177,20 +177,72 @@ def kql_correlation(rf):
     if kind in ("event_count", "value_count"):
         where = " or ".join(f"({kql_filter(rf.base[n])})" for n in names)
         agg = "count()" if kind == "event_count" else f"dcount({corr['condition']['field']})"
-        return (f"{KQL_TABLE}\n| where {where}\n| summarize {kind} = {agg} by bin(TimeGenerated, {span}), {by}"
+        return (f"{table}\n| where {where}\n| summarize {kind} = {agg} by bin(TimeGenerated, {span}), {by}"
                 f"\n| where {cond(kind)}")
     if kind == "temporal":
-        parts = ",\n    ".join(f'({KQL_TABLE} | where {kql_filter(rf.base[n])} | extend event_type = "{n}")'
+        parts = ",\n    ".join(f'({table} | where {kql_filter(rf.base[n])} | extend event_type = "{n}")'
                                for n in names)
         return (f"union\n    {parts}\n| summarize event_type_count = dcount(event_type) "
                 f"by bin(TimeGenerated, {span}), {by}\n| where event_type_count >= {len(names)}")
     raise BuildError(f"{rf.name}: no KQL template for correlation type {kind!r}")
 
 
-def to_kql(rf):
+def to_kql(rf, table=KQL_TABLE):
+    """KQL for the rule; `table` can be a table or a let-bound expression."""
     if rf.is_correlation:
-        return kql_correlation(rf)
-    return f"{KQL_TABLE}\n| where {kql_filter(rf.main)}"
+        return kql_correlation(rf, table)
+    return f"{table}\n| where {kql_filter(rf.main)}"
+
+
+# Sentinel scheduled analytics rules. Events reach the workspace in batches (every 10 minutes from the
+# honeypot), so a rule that only looked at TimeGenerated in its window would miss late events. Each run
+# instead looks at what was *ingested* in the last hour; the 2 h query period covers their TimeGenerated.
+SENTINEL_FREQUENCY, SENTINEL_PERIOD = "PT1H", "PT2H"
+SENTINEL_SEVERITY = {"critical": "High", "high": "High", "medium": "Medium", "low": "Low",
+                     "informational": "Informational"}
+# Sentinel's tactic names. Its API (up to 2025-10-01-preview) has no value yet for ATT&CK v20's Stealth
+# and Defense Impairment, but it already checks techniques against v20 and refuses e.g. T1685 under
+# DefenseEvasion. So those two tactics are left out, along with techniques that belong only to them;
+# the Sigma rules keep the full v20 tags.
+SENTINEL_TACTICS = {"initial-access": "InitialAccess", "execution": "Execution", "persistence": "Persistence",
+                    "privilege-escalation": "PrivilegeEscalation", "credential-access": "CredentialAccess",
+                    "discovery": "Discovery", "lateral-movement": "LateralMovement", "collection": "Collection",
+                    "command-and-control": "CommandAndControl", "exfiltration": "Exfiltration",
+                    "impact": "Impact"}
+
+
+def sentinel_rule(rf):
+    m = rf.main
+    from sigma.data import mitre_attack
+    v20 = mitre_attack.mitre_attack_techniques_tactics_mapping
+    tactics = sorted({SENTINEL_TACTICS[t] for t in rf.tactics if t in SENTINEL_TACTICS})
+    techniques = sorted({t.split(".")[0] for t in rf.techniques
+                         if any(tac in SENTINEL_TACTICS for tac in v20.get(t, []))})
+    group_by = m.get("correlation", {}).get("group-by", []) if rf.is_correlation else ["src_ip"]
+    entities = ([{"entityType": "IP", "fieldMappings": [{"identifier": "Address", "columnName": "src_ip"}]}]
+                if "src_ip" in group_by else [])
+    query = ("// Only events ingested since the last run (see tools/build.py)\n"
+             f"let CowrieNew = {KQL_TABLE} | where ingestion_time() > ago(1h);\n" + to_kql(rf, "CowrieNew"))
+    return {"kind": "Scheduled", "properties": {
+        "displayName": m["title"],
+        "description": " ".join(m.get("description", "").split()),
+        "severity": SENTINEL_SEVERITY[m.get("level", "medium")],
+        "enabled": True,
+        "query": query,
+        "queryFrequency": SENTINEL_FREQUENCY,
+        "queryPeriod": SENTINEL_PERIOD,
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionDuration": "PT1H",
+        "suppressionEnabled": False,
+        "tactics": tactics,
+        "techniques": techniques,
+        "entityMappings": entities or None,
+        "eventGroupingSettings": {"aggregationKind": "SingleAlert"},
+        "incidentConfiguration": {"createIncident": True, "groupingConfiguration": {
+            "enabled": True, "reopenClosedIncident": False, "lookbackDuration": "PT6H",
+            "matchingMethod": "AllEntities" if entities else "AnyAlert"}},
+    }}
 
 
 def outputs(rules):
@@ -200,6 +252,10 @@ def outputs(rules):
         note = f"{rf.main['title']}. Generated from rules/{rf.path.name} by tools/build.py; do not edit."
         out[DIST / "spl" / f"{rf.name}.spl"] = f"``` {note} ```\n{to_spl(rf)}\n"
         out[DIST / "kql" / f"{rf.name}.kql"] = f"// {note}\n{to_kql(rf)}\n"
+        body = sentinel_rule(rf)
+        body["properties"] = {k: v for k, v in body["properties"].items() if v is not None}
+        out[DIST / "sentinel" / f"{rf.name}.json"] = json.dumps(
+            {"id": rf.main["id"], "_comment": note, **body}, indent=2) + "\n"
     return out
 
 

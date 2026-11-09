@@ -1,0 +1,47 @@
+{
+  "id": "5577b658-fa17-4a11-96ed-dd7251823f3f",
+  "_comment": "Cron Job Added From Interactive Session. Generated from rules/cron_persistence.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Cron Job Added From Interactive Session",
+    "description": "A session installs a cron job, either through crontab or by writing to /etc/cron* or /var/spool/cron, so the payload restarts after a reboot or after being killed.",
+    "severity": "High",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where (eventid =~ \"cowrie.command.input\" and input matches regex \"\\\\|\\\\s*crontab\\\\b|\\\\bcrontab\\\\s+(-\\\\s*($|[;&|])|\\\\S+\\\\.\\\\w+)\") or (eventid =~ \"cowrie.command.input\" and input matches regex \">>?\\\\s*/(etc/cron|var/spool/cron)\")",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "Persistence"
+    ],
+    "techniques": [
+      "T1053"
+    ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}
