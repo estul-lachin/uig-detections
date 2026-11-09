@@ -129,9 +129,9 @@ def seen_section(rf, hits):
                 f"change, so the rule is ready when the behaviour shows up.</p>")
     else:
         alerts = int(h.get("alerts") or 0)
-        what = (f"{plural(alerts, 'alert')} in {plural(n, 'session')}" if rf.is_correlation
-                else f"{plural(n, 'session')} ({plural(alerts, 'matching command')})")
-        text = (f"<p>In the last {days} days (as of {asof}) this rule fired with {what}, first on "
+        what = (f"raised {plural(alerts, 'alert')} covering {plural(n, 'session')}" if rf.is_correlation
+                else f"fired in {plural(n, 'session')} ({plural(alerts, 'matching command')})")
+        text = (f"<p>In the last {days} days (as of {asof}) this rule {what}, first on "
                 f"{e(str(h.get('first_seen')))} and last on {e(str(h.get('last_seen')))}.</p>")
         if h.get("example"):
             text += ("<p>Most common matching command (URLs and IP addresses in it are defanged; the "
