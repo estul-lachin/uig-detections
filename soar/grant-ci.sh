@@ -21,16 +21,22 @@ if [ -z "$sp_id" ]; then
   echo "created its service principal"
 fi
 
-subject="repo:$REPO:ref:refs/heads/main"
-if [ -z "$(az ad app federated-credential list --id "$app_id" --query "[?subject=='$subject'].name" -o tsv)" ]; then
-  az ad app federated-credential create --id "$app_id" -o none --parameters "{
-    \"name\": \"github-main\",
-    \"issuer\": \"https://token.actions.githubusercontent.com\",
-    \"subject\": \"$subject\",
-    \"audiences\": [\"api://AzureADTokenExchange\"]
-  }"
-  echo "added federated credential for $subject"
-fi
+# GitHub's subject claim is either repo:owner/name:... or, with immutable IDs,
+# repo:owner@<owner id>/name@<repo id>:... (this repo sends the second). Trust both, for main only.
+ids_subject=$(gh api "repos/$REPO" --jq '"repo:\(.owner.login)@\(.owner.id)/\(.name)@\(.id):ref:refs/heads/main"')
+add_subject() { # name subject
+  if [ -z "$(az ad app federated-credential list --id "$app_id" --query "[?subject=='$2'].name" -o tsv)" ]; then
+    az ad app federated-credential create --id "$app_id" -o none --parameters "{
+      \"name\": \"$1\",
+      \"issuer\": \"https://token.actions.githubusercontent.com\",
+      \"subject\": \"$2\",
+      \"audiences\": [\"api://AzureADTokenExchange\"]
+    }"
+    echo "added federated credential for $2"
+  fi
+}
+add_subject github-main "repo:$REPO:ref:refs/heads/main"
+add_subject github-main-ids "$ids_subject"
 
 scope=$(az monitor log-analytics workspace show -g "$RG" -n "$WS" --query id -o tsv)
 if [ -z "$(az role assignment list --assignee "$sp_id" --role "Log Analytics Reader" --scope "$scope" --query '[0].id' -o tsv)" ]; then
