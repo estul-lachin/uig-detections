@@ -1,0 +1,8 @@
+``` Permissions Changed To Run Or Unlock A File. Generated from rules/chmod_then_execute.yml by tools/build.py; do not edit. ```
+index=honeypot sourcetype=cowrie:json eventid="cowrie.command.input"
+| rex field=input "(?<inputMatch>chmod\\s+(-[a-zA-Z]+\\s+)?([ugoa]*\\+[rw]*x|[0-7]*[1357][0-7]*)\\s+\\S+\\s*(;|&&)\\s*((ba)?sh\\s+)?(\\./|/)\\S+)"
+| eval inputCondition=if(isnotnull(inputMatch), "true", "false")
+| rex field=input "(?<inputMatch2>\\bchattr\\s+-[a-zA-Z]*[ia])"
+| eval inputCondition2=if(isnotnull(inputMatch2), "true", "false")
+| search (inputCondition="true" OR inputCondition2="true")
+| regex input!="\\b(wget|curl|tftp|ftpget)\\b"

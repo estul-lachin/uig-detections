@@ -1,0 +1,47 @@
+{
+  "id": "22c98147-e208-4d3b-93cf-d906bbdd5945",
+  "_comment": "System Fingerprinted In One Command. Generated from rules/system_fingerprint.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "System Fingerprinted In One Command",
+    "description": "One command line reads the kernel and architecture (uname) together with the CPU count or CPU details (nproc, lscpu, /proc/cpuinfo). Bots do this right after logging in to pick the right payload build and to judge whether the host is worth mining on. Each command alone is everyday admin work, so the rule only fires when both appear in the same line.",
+    "severity": "Low",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where (eventid =~ \"cowrie.command.input\" and input matches regex \"\\\\buname\\\\b\") and input matches regex \"\\\\b(nproc|lscpu)\\\\b|/proc/cpuinfo\"",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "Discovery"
+    ],
+    "techniques": [
+      "T1082"
+    ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

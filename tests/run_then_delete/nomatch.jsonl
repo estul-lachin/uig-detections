@@ -1,0 +1,6 @@
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"rm -rf /tmp/x; cat .bash_history"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"rm -f ./old.log"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"ls ./build; echo done"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"sh install.sh"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"cat /tmp/notes.txt; rm -i notes.bak"}
+{"eventid":"cowrie.command.input","timestamp":"2026-11-07T10:00:00.000000Z","src_ip":"198.51.100.10","session":"a1b2c3d4e5f6","input":"cd /var/tmp && ls -la"}

@@ -1,0 +1,25 @@
+title: File Deleted Right After It Runs
+id: 06013da3-dde3-410c-a7d7-4cd15e859f6b
+status: experimental
+description: |
+  A command line runs a file (./name, sh name, or a path under /tmp, /var/tmp, /var/run or /dev/shm)
+  and then deletes with rm. Droppers remove their payload as soon as it has started, so the binary is
+  gone before anyone looks at the disk. The rule doesn't need the download, so it also covers payloads
+  written by echo or copied in earlier.
+references:
+  - https://attack.mitre.org/techniques/T1070/004/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.stealth
+  - attack.t1070.004
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.command.input
+    input|re: '(^|[;&|]\s*)((ba)?sh\s+\S+|\./\S+|/(tmp|var/tmp|var/run|dev/shm)/\S+).*[;&|]\s*rm\s'
+  condition: selection
+falsepositives:
+  - Build scripts that run ./configure or a test binary and then clean up
+level: medium

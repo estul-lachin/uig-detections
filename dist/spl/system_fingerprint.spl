@@ -1,0 +1,4 @@
+``` System Fingerprinted In One Command. Generated from rules/system_fingerprint.yml by tools/build.py; do not edit. ```
+index=honeypot sourcetype=cowrie:json eventid="cowrie.command.input"
+| regex input="\\buname\\b"
+| regex input="\\b(nproc|lscpu)\\b|/proc/cpuinfo"

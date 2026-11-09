@@ -4,7 +4,9 @@ status: experimental
 description: |
   The bot creates an empty dot-file in a directory and runs it with sh, for example
   `echo > /dev/shm/.b && sh /dev/shm/.b`. It repeats this across /tmp, /var/run, /dev/shm and others to
-  find a directory that is both writable and not mounted noexec, then drops its payload there.
+  find a directory that is both writable and not mounted noexec, then drops its payload there. A variant
+  creates the file with a bare redirect, makes it executable and runs it directly:
+  `>/tmp/d && chmod 777 /tmp/d && /tmp/d`.
 references:
   - https://attack.mitre.org/techniques/T1083/
 author: Estul Lachin
@@ -19,7 +21,7 @@ logsource:
 detection:
   selection:
     eventid: cowrie.command.input
-    input|re: 'echo\s*>\s*\S+/\.\w+\s*&&\s*sh\s+\S+/\.\w+'
+    input|re: '(echo\s*)?>\s*\S+/\.?\w+\s*&&\s*(sh\s+|chmod\s+\S+\s+\S+\s*&&\s*)\S+/\.?\w+'
   condition: selection
 falsepositives:
   - Unlikely; legitimate scripts do not test directories this way

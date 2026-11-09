@@ -1,0 +1,3 @@
+// Permissions Changed To Run Or Unlock A File. Generated from rules/chmod_then_execute.yml by tools/build.py; do not edit.
+Cowrie_CL
+| where eventid =~ "cowrie.command.input" and (input matches regex "chmod\\s+(-[a-zA-Z]+\\s+)?([ugoa]*\\+[rw]*x|[0-7]*[1357][0-7]*)\\s+\\S+\\s*(;|&&)\\s*((ba)?sh\\s+)?(\\./|/)\\S+" or input matches regex "\\bchattr\\s+-[a-zA-Z]*[ia]") and (not(input matches regex "\\b(wget|curl|tftp|ftpget)\\b"))

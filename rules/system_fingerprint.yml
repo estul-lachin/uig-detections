@@ -1,0 +1,27 @@
+title: System Fingerprinted In One Command
+id: 22c98147-e208-4d3b-93cf-d906bbdd5945
+status: experimental
+description: |
+  One command line reads the kernel and architecture (uname) together with the CPU count or CPU details
+  (nproc, lscpu, /proc/cpuinfo). Bots do this right after logging in to pick the right payload build and
+  to judge whether the host is worth mining on. Each command alone is everyday admin work, so the rule
+  only fires when both appear in the same line.
+references:
+  - https://attack.mitre.org/techniques/T1082/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.discovery
+  - attack.t1082
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.command.input
+    input|re: '\buname\b'
+  cpu:
+    input|re: '\b(nproc|lscpu)\b|/proc/cpuinfo'
+  condition: selection and cpu
+falsepositives:
+  - Inventory or build scripts that print kernel and CPU details together
+level: low

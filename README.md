@@ -39,7 +39,7 @@ tools/sentinel_deploy.py   deploy dist/sentinel/ as analytics rules (updates in 
    evaluator alone can't.
 5. **Sentinel check**: `tools/sentinel_check.py` uploads the test events to a separate `Cowrie_Test_CL`
    table through their own data collection rule, runs each rule's KQL scoped to that rule's events, and
-   requires the same result. All 11 rules agree with the evaluator in both Splunk and Sentinel.
+   requires the same result. All 14 rules agree with the evaluator in both Splunk and Sentinel.
 6. **Deploy**: `tools/sentinel_deploy.py` creates or updates one scheduled analytics rule per Sigma rule.
    The honeypot ships new events every 10 minutes (uig-honeypot's `vps/sentinel.py`), so each hourly run
    looks at what was *ingested* in the last hour (`ingestion_time()`) instead of a TimeGenerated window

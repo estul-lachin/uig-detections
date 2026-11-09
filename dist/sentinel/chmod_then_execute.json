@@ -1,0 +1,47 @@
+{
+  "id": "9feb96f8-f354-42ad-9667-a5569b03a61d",
+  "_comment": "Permissions Changed To Run Or Unlock A File. Generated from rules/chmod_then_execute.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Permissions Changed To Run Or Unlock A File",
+    "description": "A command makes a file executable (chmod +x or a numeric mode) and runs it in the same line, without a download in that line, or removes the immutable or append-only attribute with chattr -i / -a. The first is the last step of droppers that wrote their binary another way, such as hex-escaped echo chunks; the second unlocks files like ~/.ssh before the attacker overwrites them. Lines that also download are left to the download-and-execute rule, so one dropper command raises one alert.",
+    "severity": "Medium",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where eventid =~ \"cowrie.command.input\" and (input matches regex \"chmod\\\\s+(-[a-zA-Z]+\\\\s+)?([ugoa]*\\\\+[rw]*x|[0-7]*[1357][0-7]*)\\\\s+\\\\S+\\\\s*(;|&&)\\\\s*((ba)?sh\\\\s+)?(\\\\./|/)\\\\S+\" or input matches regex \"\\\\bchattr\\\\s+-[a-zA-Z]*[ia]\") and (not(input matches regex \"\\\\b(wget|curl|tftp|ftpget)\\\\b\"))",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "Execution"
+    ],
+    "techniques": [
+      "T1059"
+    ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

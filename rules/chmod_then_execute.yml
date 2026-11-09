@@ -1,0 +1,34 @@
+title: Permissions Changed To Run Or Unlock A File
+id: 9feb96f8-f354-42ad-9667-a5569b03a61d
+status: experimental
+description: |
+  A command makes a file executable (chmod +x or a numeric mode) and runs it in the same line, without a
+  download in that line, or removes the immutable or append-only attribute with chattr -i / -a. The first
+  is the last step of droppers that wrote their binary another way, such as hex-escaped echo chunks; the
+  second unlocks files like ~/.ssh before the attacker overwrites them. Lines that also download are
+  left to the download-and-execute rule, so one dropper command raises one alert.
+references:
+  - https://attack.mitre.org/techniques/T1222/002/
+  - https://attack.mitre.org/techniques/T1059/004/
+author: Estul Lachin
+date: 2026-11-08
+tags:
+  - attack.defense-impairment
+  - attack.t1222.002
+  - attack.execution
+  - attack.t1059.004
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.command.input
+  chmod_run:
+    input|re: 'chmod\s+(-[a-zA-Z]+\s+)?([ugoa]*\+[rw]*x|[0-7]*[1357][0-7]*)\s+\S+\s*(;|&&)\s*((ba)?sh\s+)?(\./|/)\S+'
+  unlock:
+    input|re: '\bchattr\s+-[a-zA-Z]*[ia]'
+  download:
+    input|re: '\b(wget|curl|tftp|ftpget)\b'
+  condition: selection and (chmod_run or unlock) and not download
+falsepositives:
+  - Administrators running a script they just made executable, or clearing chattr flags by hand
+level: medium

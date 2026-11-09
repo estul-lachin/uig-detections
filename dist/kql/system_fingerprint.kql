@@ -1,0 +1,3 @@
+// System Fingerprinted In One Command. Generated from rules/system_fingerprint.yml by tools/build.py; do not edit.
+Cowrie_CL
+| where (eventid =~ "cowrie.command.input" and input matches regex "\\buname\\b") and input matches regex "\\b(nproc|lscpu)\\b|/proc/cpuinfo"

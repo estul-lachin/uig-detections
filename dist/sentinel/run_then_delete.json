@@ -1,0 +1,43 @@
+{
+  "id": "06013da3-dde3-410c-a7d7-4cd15e859f6b",
+  "_comment": "File Deleted Right After It Runs. Generated from rules/run_then_delete.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "File Deleted Right After It Runs",
+    "description": "A command line runs a file (./name, sh name, or a path under /tmp, /var/tmp, /var/run or /dev/shm) and then deletes with rm. Droppers remove their payload as soon as it has started, so the binary is gone before anyone looks at the disk. The rule doesn't need the download, so it also covers payloads written by echo or copied in earlier.",
+    "severity": "Medium",
+    "enabled": true,
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where eventid =~ \"cowrie.command.input\" and input matches regex \"(^|[;&|]\\\\s*)((ba)?sh\\\\s+\\\\S+|\\\\./\\\\S+|/(tmp|var/tmp|var/run|dev/shm)/\\\\S+).*[;&|]\\\\s*rm\\\\s\"",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [],
+    "techniques": [],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "eventGroupingSettings": {
+      "aggregationKind": "SingleAlert"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT6H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}
