@@ -4,6 +4,7 @@ Plain HTML and CSS, no JavaScript. Every value from a rule is escaped.
 """
 
 import html
+import json
 import shutil
 from collections import defaultdict
 from pathlib import Path
@@ -205,6 +206,16 @@ def render_rule(rf, result, spl, kql):
     return page(f"{m['title']} · Detections · Estul Lachin", body, 2, desc)
 
 
+def summary(rules, results):
+    """The headline numbers for uig.me (same as the stats on the index page)."""
+    return {
+        "rules": len(rules),
+        "techniques": len({t for rf in rules for t in rf.techniques}),
+        "attack_test_events": sum(r["positive_events"] for r in results.values()),
+        "lookalike_test_events": sum(r["negative_events"] for r in results.values()),
+    }
+
+
 def render(rules, results, outputs, out_dir):
     out = Path(out_dir)
     if out.exists():
@@ -217,6 +228,7 @@ def render(rules, results, outputs, out_dir):
         d = out / "rules" / rf.name
         d.mkdir()
         (d / "index.html").write_text(render_rule(rf, results[rf.name], spl, kql), encoding="utf-8")
+    (out / "summary.json").write_text(json.dumps(summary(rules, results), indent=1) + "\n", encoding="utf-8")
     for f in ("style.css", "favicon.svg", "og-image.png", "CNAME", "404.html"):
         src = ROOT / "site" / f
         if src.exists():
