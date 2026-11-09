@@ -53,7 +53,9 @@ After changing `tools/sigma_eval.py`, copy it to uig-honeypot's `vps/sigma_eval.
 6. **Deploy**: `tools/sentinel_deploy.py` creates or updates one scheduled analytics rule per Sigma rule.
    The honeypot ships new events every 10 minutes (uig-honeypot's `vps/sentinel.py`), so each hourly run
    looks at what was *ingested* in the last hour (`ingestion_time()`) instead of a TimeGenerated window
-   that would miss late events. Alerts are grouped into incidents by source IP.
+   that would miss late events. Each run raises one alert per source IP (the IP is mapped as an entity
+   and named in the alert title, with the match count and first/last time as custom details), and the
+   same rule firing again for the same IP within a day joins the open incident instead of opening a new one.
 
 ```
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt

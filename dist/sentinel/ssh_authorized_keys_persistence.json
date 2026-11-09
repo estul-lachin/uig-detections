@@ -7,7 +7,7 @@
     "description": "A command writes to or locks an authorized_keys file. The attacker adds their own public key so they can come back without the password that let them in, often followed by chattr +i so the key can't be removed.",
     "severity": "High",
     "enabled": true,
-    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where (eventid =~ \"cowrie.command.input\" and input contains \"authorized_keys\") and input matches regex \">>?|\\\\b(tee|cp|mv|chattr|sed\\\\s+-i)\\\\b\"",
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nCowrieNew\n| where (eventid =~ \"cowrie.command.input\" and input contains \"authorized_keys\") and input matches regex \">>?|\\\\b(tee|cp|mv|chattr|sed\\\\s+-i)\\\\b\"\n// One alert per source IP\n| summarize Matches = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated) by src_ip",
     "queryFrequency": "PT1H",
     "queryPeriod": "PT2H",
     "triggerOperator": "GreaterThan",
@@ -31,15 +31,23 @@
         ]
       }
     ],
+    "customDetails": {
+      "Matches": "Matches",
+      "FirstSeen": "FirstSeen",
+      "LastSeen": "LastSeen"
+    },
+    "alertDetailsOverride": {
+      "alertDisplayNameFormat": "SSH Authorized Keys Modified from {{src_ip}}"
+    },
     "eventGroupingSettings": {
-      "aggregationKind": "SingleAlert"
+      "aggregationKind": "AlertPerResult"
     },
     "incidentConfiguration": {
       "createIncident": true,
       "groupingConfiguration": {
         "enabled": true,
         "reopenClosedIncident": false,
-        "lookbackDuration": "PT6H",
+        "lookbackDuration": "P1D",
         "matchingMethod": "AllEntities"
       }
     }

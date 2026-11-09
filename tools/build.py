@@ -171,6 +171,9 @@ def kql_correlation(rf, table=KQL_TABLE):
     span, by = corr["timespan"], ", ".join(corr.get("group-by", []))
     names = corr["rules"]
     kind = corr["type"]
+    # Keep the source IP on every result row, so Sentinel can map it to an entity even when the
+    # correlation groups by something else (a session always comes from one IP).
+    keep_ip = "" if "src_ip" in corr.get("group-by", []) else ", src_ip = take_any(src_ip)"
 
     def cond(value_name):
         c = corr["condition"]
@@ -180,12 +183,12 @@ def kql_correlation(rf, table=KQL_TABLE):
     if kind in ("event_count", "value_count"):
         where = " or ".join(f"({kql_filter(rf.base[n])})" for n in names)
         agg = "count()" if kind == "event_count" else f"dcount({corr['condition']['field']})"
-        return (f"{table}\n| where {where}\n| summarize {kind} = {agg} by bin(TimeGenerated, {span}), {by}"
+        return (f"{table}\n| where {where}\n| summarize {kind} = {agg}{keep_ip} by bin(TimeGenerated, {span}), {by}"
                 f"\n| where {cond(kind)}")
     if kind == "temporal":
         parts = ",\n    ".join(f'({table} | where {kql_filter(rf.base[n])} | extend event_type = "{n}")'
                                for n in names)
-        return (f"union\n    {parts}\n| summarize event_type_count = dcount(event_type) "
+        return (f"union\n    {parts}\n| summarize event_type_count = dcount(event_type){keep_ip} "
                 f"by bin(TimeGenerated, {span}), {by}\n| where event_type_count >= {len(names)}")
     raise BuildError(f"{rf.name}: no KQL template for correlation type {kind!r}")
 
@@ -221,11 +224,13 @@ def sentinel_rule(rf):
     tactics = sorted({SENTINEL_TACTICS[t] for t in rf.tactics if t in SENTINEL_TACTICS})
     techniques = sorted({t.split(".")[0] for t in rf.techniques
                          if any(tac in SENTINEL_TACTICS for tac in v20.get(t, []))})
-    group_by = m.get("correlation", {}).get("group-by", []) if rf.is_correlation else ["src_ip"]
-    entities = ([{"entityType": "IP", "fieldMappings": [{"identifier": "Address", "columnName": "src_ip"}]}]
-                if "src_ip" in group_by else [])
+    # One result row, and so one alert, per source IP and run; the playbooks in soar/ enrich and triage
+    # per IP. Every query keeps src_ip (correlations carry it with take_any, see kql_correlation).
     query = ("// Only events ingested since the last run (see tools/build.py)\n"
-             f"let CowrieNew = {KQL_TABLE} | where ingestion_time() > ago(1h);\n" + to_kql(rf, "CowrieNew"))
+             f"let CowrieNew = {KQL_TABLE} | where ingestion_time() > ago(1h);\n" + to_kql(rf, "CowrieNew")
+             + "\n// One alert per source IP\n"
+               "| summarize Matches = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated)"
+               " by src_ip")
     return {"kind": "Scheduled", "properties": {
         "displayName": m["title"],
         "description": " ".join(m.get("description", "").split()),
@@ -240,11 +245,15 @@ def sentinel_rule(rf):
         "suppressionEnabled": False,
         "tactics": tactics,
         "techniques": techniques,
-        "entityMappings": entities or None,
-        "eventGroupingSettings": {"aggregationKind": "SingleAlert"},
+        "entityMappings": [{"entityType": "IP",
+                            "fieldMappings": [{"identifier": "Address", "columnName": "src_ip"}]}],
+        "customDetails": {"Matches": "Matches", "FirstSeen": "FirstSeen", "LastSeen": "LastSeen"},
+        "alertDetailsOverride": {"alertDisplayNameFormat": m["title"] + " from {{src_ip}}"},
+        "eventGroupingSettings": {"aggregationKind": "AlertPerResult"},
+        # The same rule firing again for the same IP within a day joins the open incident.
         "incidentConfiguration": {"createIncident": True, "groupingConfiguration": {
-            "enabled": True, "reopenClosedIncident": False, "lookbackDuration": "PT6H",
-            "matchingMethod": "AllEntities" if entities else "AnyAlert"}},
+            "enabled": True, "reopenClosedIncident": False, "lookbackDuration": "P1D",
+            "matchingMethod": "AllEntities"}},
     }}
 
 

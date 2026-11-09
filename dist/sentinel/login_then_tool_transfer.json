@@ -7,7 +7,7 @@
     "description": "A session logs in and transfers a tool within the same five-minute window: the automated dropper chain of IoT and Linux botnets. Commands only exist after a login in Cowrie, so grouping by session gives the order without an ordered correlation (which the Splunk backend doesn't support). Buckets are fixed, so a chain that straddles a bucket boundary is missed; widen the timespan to trade precision for recall.",
     "severity": "High",
     "enabled": true,
-    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nunion\n    (CowrieNew | where eventid =~ \"cowrie.login.success\" | extend event_type = \"cowrie_login_success\"),\n    (CowrieNew | where (eventid =~ \"cowrie.command.input\" and input matches regex \"\\\\b(wget|curl|tftp|ftpget|scp)\\\\b|/dev/tcp/|echo\\\\s+-[a-z]*e[a-z]*\\\\s+[\\\"']?(\\\\\\\\x[0-9a-fA-F]{2}){4}\") or (eventid in~ (\"cowrie.session.file_download\", \"cowrie.session.file_download.failed\")) | extend event_type = \"cowrie_tool_transfer\")\n| summarize event_type_count = dcount(event_type) by bin(TimeGenerated, 5m), session\n| where event_type_count >= 2",
+    "query": "// Only events ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | where ingestion_time() > ago(1h);\nunion\n    (CowrieNew | where eventid =~ \"cowrie.login.success\" | extend event_type = \"cowrie_login_success\"),\n    (CowrieNew | where (eventid =~ \"cowrie.command.input\" and input matches regex \"\\\\b(wget|curl|tftp|ftpget|scp)\\\\b|/dev/tcp/|echo\\\\s+-[a-z]*e[a-z]*\\\\s+[\\\"']?(\\\\\\\\x[0-9a-fA-F]{2}){4}\") or (eventid in~ (\"cowrie.session.file_download\", \"cowrie.session.file_download.failed\")) | extend event_type = \"cowrie_tool_transfer\")\n| summarize event_type_count = dcount(event_type), src_ip = take_any(src_ip) by bin(TimeGenerated, 5m), session\n| where event_type_count >= 2\n// One alert per source IP\n| summarize Matches = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated) by src_ip",
     "queryFrequency": "PT1H",
     "queryPeriod": "PT2H",
     "triggerOperator": "GreaterThan",
@@ -22,16 +22,35 @@
       "T1078",
       "T1105"
     ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "customDetails": {
+      "Matches": "Matches",
+      "FirstSeen": "FirstSeen",
+      "LastSeen": "LastSeen"
+    },
+    "alertDetailsOverride": {
+      "alertDisplayNameFormat": "Login Followed By Tool Transfer from {{src_ip}}"
+    },
     "eventGroupingSettings": {
-      "aggregationKind": "SingleAlert"
+      "aggregationKind": "AlertPerResult"
     },
     "incidentConfiguration": {
       "createIncident": true,
       "groupingConfiguration": {
         "enabled": true,
         "reopenClosedIncident": false,
-        "lookbackDuration": "PT6H",
-        "matchingMethod": "AnyAlert"
+        "lookbackDuration": "P1D",
+        "matchingMethod": "AllEntities"
       }
     }
   }
