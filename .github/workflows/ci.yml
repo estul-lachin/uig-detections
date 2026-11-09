@@ -28,9 +28,21 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+      # SOAR numbers for the site: an OIDC login whose only role is Log Analytics Reader on the workspace
+      # (soar/grant-ci.sh). Only on main; if it fails, the site is built without the SOAR section.
+      - uses: azure/login@v2
+        id: azure
+        if: github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
+        continue-on-error: true
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - if: steps.azure.outcome == 'success'
+        run: python tools/soar_stats.py --out soar-stats.json || echo "::warning::SOAR stats unavailable"
       # Validate, run every rule against its test events, and fail if dist/ is stale.
       - run: >-
-          python tools/build.py --check --site _site
+          python tools/build.py --check --site _site --soar soar-stats.json
           --hits https://raw.githubusercontent.com/estul-lachin/uig-honeypot-data/main/detections.json
       # The SOAR template must compile without linter warnings, and its scripts must parse.
       - run: |

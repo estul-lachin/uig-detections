@@ -10,6 +10,7 @@ playbooks/<name>.json  a playbook's workflow definition, loaded by main.bicep
 deploy.sh              what-if, then deploy (idempotent: a redeploy shows "NoChange")
 grant.sh               role assignments, run by someone who can assign roles
 set-secrets.sh         store the API keys in the Key Vault (typed or piped, never as arguments)
+grant-ci.sh            let CI read the workspace for the site's numbers (OIDC, no secret)
 ```
 
 | Playbook | Run by | Does |
@@ -59,12 +60,23 @@ same event does not raise a second incident. Expect 15 to 25 minutes.
 .venv/bin/python tools/soar_e2e.py
 ```
 
+## Published numbers
+
+CI runs `tools/soar_stats.py` on main and publishes `soar.json` and an "Automated response" section on
+detections.uig.me, plus a `soar` block in `summary.json` that uig.me shows. It logs in with GitHub OIDC
+(`soar/grant-ci.sh`: an app registration with a federated credential for `main` and one role, Log
+Analytics Reader on the workspace), so no secret is stored. The counts start when the enrichment
+automation went live and leave out incidents tagged `soar:legacy` (closed in bulk when the rules switched
+to one alert per IP) and `soar:e2e-test`. They hold no IPs, titles or comments. If the login or the query
+fails, the site is built without the section.
+
 ## Setup
 
 ```
 soar/deploy.sh          # review the what-if, then confirm
 soar/grant.sh           # role assignments (Owner or User Access Administrator)
 soar/set-secrets.sh     # abuseipdb-key, telegram-bot-token, telegram-chat-id
+soar/grant-ci.sh        # optional: CI login for the published numbers
 ```
 
 | Who | Role | Scope | Why |
@@ -74,3 +86,4 @@ soar/set-secrets.sh     # abuseipdb-key, telegram-bot-token, telegram-chat-id
 | each playbook | Key Vault Secrets User | vault | read the API keys |
 | Azure Security Insights | Microsoft Sentinel Automation Contributor | resource group | let automation rules run playbooks |
 | you | Key Vault Secrets Officer | vault | set the secrets |
+| CI (`uig-detections-ci`) | Log Analytics Reader | workspace | read `SecurityIncident` for `soar.json` |

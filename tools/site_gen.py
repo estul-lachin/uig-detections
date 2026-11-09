@@ -141,7 +141,32 @@ def seen_section(rf, hits):
             f'logic on the <a href="https://honeypot.uig.me/">honeypot</a>\'s raw logs every hour.</p>')
 
 
-def render_index(rules, results, hits=None):
+def soar_section(soar):
+    """The "Automated response" part of the index, from tools/soar_stats.py's output."""
+    if not soar or not soar.get("incidents"):
+        return ""
+    asof = e(str(soar.get("generated_at", "")).replace("T", " ").replace("Z", " UTC"))
+    med = soar.get("enrich_seconds_median")
+    stat = lambda num, label: (f'<div class="stat"><span class="num">{num}</span>'
+                               f'<span class="label">{label}</span></div>')
+    return f"""
+<h2>Automated response</h2>
+<p>Every incident these rules raise in Microsoft Sentinel goes through SOAR playbooks (Logic Apps, deployed
+  with <a href="{REPO}/tree/main/soar">Bicep</a>). The honeypot only sees attacks, so they triage rather than
+  block: each incident is enriched with AbuseIPDB and the source's activity on the honeypot, Low-severity
+  incidents from widely reported sources are closed, and High ones are assigned and sent to my phone.</p>
+<div class="stats">
+  {stat(e(str(soar["incidents"])), "incidents")}
+  {stat(f'{soar.get("enriched_pct", 0)}%', "enriched" + (f", median {med} s after creation" if med is not None else ""))}
+  {stat(f'{soar.get("auto_closed_pct", 0)}%', "closed automatically")}
+  {stat(f'{soar.get("high_notified", 0)} of {soar.get("high", 0)}', "High incidents escalated")}
+</div>
+<p class="meta">Since {e(str(soar.get("since", "")))}, as of {asof}. Test incidents are left out.
+  <a href="soar.json">soar.json</a></p>
+"""
+
+
+def render_index(rules, results, hits=None, soar=None):
     by_tactic = defaultdict(lambda: defaultdict(list))
     for rf in rules:
         for t in rf.techniques:
@@ -202,7 +227,7 @@ def render_index(rules, results, hits=None):
   <li><strong>Deploy</strong>: the rules run as Sentinel analytics rules on the live honeypot feed, which
     arrives every 10 minutes</li>
 </ol>
-
+{soar_section(soar)}
 <h2>ATT&amp;CK coverage</h2>
 <div class="card table-wrap">
 <table class="coverage">
@@ -265,14 +290,18 @@ def render_rule(rf, result, spl, kql, hits=None):
     return page(f"{m['title']} · Detections · Estul Lachin", body, 2, desc)
 
 
-def summary(rules, results):
+def summary(rules, results, soar=None):
     """The headline numbers for uig.me (same as the stats on the index page)."""
-    return {
+    out = {
         "rules": len(rules),
         "techniques": len({t for rf in rules for t in rf.techniques}),
         "attack_test_events": sum(r["positive_events"] for r in results.values()),
         "lookalike_test_events": sum(r["negative_events"] for r in results.values()),
     }
+    if soar and soar.get("incidents"):
+        out["soar"] = {k: soar.get(k) for k in ("incidents", "enriched_pct", "enrich_seconds_median",
+                                                 "auto_closed_pct", "high", "high_notified", "since")}
+    return out
 
 
 def rules_export(rules):
@@ -289,12 +318,12 @@ def rules_export(rules):
     return {"version": 1, "rules": out}
 
 
-def render(rules, results, outputs, out_dir, hits=None):
+def render(rules, results, outputs, out_dir, hits=None, soar=None):
     out = Path(out_dir)
     if out.exists():
         shutil.rmtree(out)
     (out / "rules").mkdir(parents=True)
-    (out / "index.html").write_text(render_index(rules, results, hits), encoding="utf-8")
+    (out / "index.html").write_text(render_index(rules, results, hits, soar), encoding="utf-8")
     for rf in rules:
         spl = outputs[ROOT / "dist" / "spl" / f"{rf.name}.spl"]
         kql = outputs[ROOT / "dist" / "kql" / f"{rf.name}.kql"]
@@ -302,7 +331,9 @@ def render(rules, results, outputs, out_dir, hits=None):
         d.mkdir()
         (d / "index.html").write_text(render_rule(rf, results[rf.name], spl, kql, hits), encoding="utf-8")
     (out / "rules.json").write_text(json.dumps(rules_export(rules), indent=1) + "\n", encoding="utf-8")
-    (out / "summary.json").write_text(json.dumps(summary(rules, results), indent=1) + "\n", encoding="utf-8")
+    (out / "summary.json").write_text(json.dumps(summary(rules, results, soar), indent=1) + "\n", encoding="utf-8")
+    if soar:
+        (out / "soar.json").write_text(json.dumps(soar, indent=1) + "\n", encoding="utf-8")
     for f in ("style.css", "favicon.svg", "og-image.png", "CNAME", "404.html"):
         src = ROOT / "site" / f
         if src.exists():

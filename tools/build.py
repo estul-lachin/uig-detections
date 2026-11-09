@@ -294,6 +294,7 @@ def main(argv=None):
     ap.add_argument("--check", action="store_true", help="fail if dist/ is out of date")
     ap.add_argument("--site", type=Path, help="render the website into this directory")
     ap.add_argument("--hits", help="the honeypot's detections.json (URL or file) for the site")
+    ap.add_argument("--soar", type=Path, help="tools/soar_stats.py's output, for the site's SOAR section")
     a = ap.parse_args(argv)
     try:
         rules = load_rules()
@@ -324,7 +325,8 @@ def main(argv=None):
     print(f"{len(rules)} rules validated, tested and converted.")
     if a.site:
         import site_gen
-        site_gen.render(rules, results, out, a.site, load_hits(a.hits) if a.hits else None)
+        soar = json.loads(a.soar.read_text(encoding="utf-8")) if a.soar and a.soar.exists() else None
+        site_gen.render(rules, results, out, a.site, load_hits(a.hits) if a.hits else None, soar)
         print(f"site written to {a.site}")
     return 0
 
