@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Rebuild so "Seen on the honeypot" follows the hourly detections.json.
+  schedule:
+    - cron: "23 */6 * * *"
 
 permissions:
   contents: read
@@ -26,7 +29,9 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       # Validate, run every rule against its test events, and fail if dist/ is stale.
-      - run: python tools/build.py --check --site _site
+      - run: >-
+          python tools/build.py --check --site _site
+          --hits https://raw.githubusercontent.com/estul-lachin/uig-honeypot-data/main/detections.json
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main'
         with:

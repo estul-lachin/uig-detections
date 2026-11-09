@@ -22,6 +22,16 @@ tools/sentinel_check.py    run the generated KQL in Microsoft Sentinel on the sa
 tools/sentinel_deploy.py   deploy dist/sentinel/ as analytics rules (updates in place)
 ```
 
+## Seen on the honeypot
+
+The site build also publishes `rules.json`, the detection logic as plain JSON. Every hour the honeypot
+(uig-honeypot's `vps/detect.py`) downloads it, runs the rules on the last 30 days of raw logs with a verbatim
+copy of `tools/sigma_eval.py`, and publishes `detections.json` to the public data repo: per rule the sessions
+and alerts, the first and last day, and the most common matching command, defanged and without source IPs.
+CI rebuilds the site every 6 hours with `--hits` pointing at that file, so every rule page shows whether the
+rule fires on real attacks. If the file can't be read, the site is built without that section.
+After changing `tools/sigma_eval.py`, copy it to uig-honeypot's `vps/sigma_eval.py`.
+
 ## Pipeline
 
 1. **Validate**: pySigma's 31 core validators, including ATT&CK tags against the current ATT&CK release,
@@ -49,6 +59,7 @@ tools/sentinel_deploy.py   deploy dist/sentinel/ as analytics rules (updates in 
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python tools/build.py                 # validate + test + update dist/
 .venv/bin/python tools/build.py --site _site    # also render the website
+.venv/bin/python tools/build.py --site _site --hits detections.json   # with honeypot hits (file or URL)
 SPLUNK_PASSWORD=... .venv/bin/python tools/splunk_check.py
 .venv/bin/python tools/sentinel_check.py         # needs az login
 .venv/bin/python tools/sentinel_deploy.py

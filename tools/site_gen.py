@@ -1,6 +1,10 @@
 """Render detections.uig.me from the rules, test results and converted queries.
 
-Plain HTML and CSS, no JavaScript. Every value from a rule is escaped.
+Plain HTML and CSS, no JavaScript. Every value from a rule or from the honeypot is escaped.
+
+Also writes rules.json, the rules as plain data for uig-honeypot's vps/detect.py, which runs
+them on the live logs every hour and publishes detections.json; that file, read back at build
+time with --hits, fills the "Seen on the honeypot" parts. CI rebuilds the site every 6 hours.
 """
 
 import html
@@ -89,7 +93,55 @@ def technique_tactics(tid):
     return tactics
 
 
-def render_index(rules, results):
+def seen(rf, hits):
+    """This rule's honeypot stats from detections.json, or None (no file, or rule not in it)."""
+    if not hits:
+        return None
+    h = hits["rules"].get(rf.name)
+    if not isinstance(h, dict) or h.get("id") != rf.main["id"]:
+        return None
+    return h
+
+
+def plural(n, word):
+    return f"{n:,} {word}{'' if n == 1 else 's'}"
+
+
+def seen_badge(rf, hits):
+    h = seen(rf, hits)
+    if h is None:
+        return ""
+    n = int(h.get("sessions") or 0)
+    if not n:
+        return f'<span class="seen none">not seen in {int(hits.get("days", 30))} days</span>'
+    return f'<span class="seen">seen in {plural(n, "session")}</span>'
+
+
+def seen_section(rf, hits):
+    h = seen(rf, hits)
+    if h is None:
+        return ""
+    days = int(hits.get("days", 30))
+    asof = e(str(hits.get("generated_at", "")).replace("T", " ").replace("Z", " UTC"))
+    n = int(h.get("sessions") or 0)
+    if not n:
+        text = (f"<p>Has not fired in the last {days} days (as of {asof}). The tests above still run on every "
+                f"change, so the rule is ready when the behaviour shows up.</p>")
+    else:
+        alerts = int(h.get("alerts") or 0)
+        what = (f"{plural(alerts, 'alert')} in {plural(n, 'session')}" if rf.is_correlation
+                else f"{plural(n, 'session')} ({plural(alerts, 'matching command')})")
+        text = (f"<p>In the last {days} days (as of {asof}) this rule fired with {what}, first on "
+                f"{e(str(h.get('first_seen')))} and last on {e(str(h.get('last_seen')))}.</p>")
+        if h.get("example"):
+            text += ("<p>Most common matching command (URLs and IP addresses in it are defanged; the "
+                     "attackers' source IPs are never published):</p>"
+                     f'<pre class="code"><code>{e(str(h["example"]))}</code></pre>')
+    return (f'<h2>Seen on the honeypot</h2>\n{text}\n<p class="meta">Counted by running this rule\'s Sigma '
+            f'logic on the <a href="https://honeypot.uig.me/">honeypot</a>\'s raw logs every hour.</p>')
+
+
+def render_index(rules, results, hits=None):
     by_tactic = defaultdict(lambda: defaultdict(list))
     for rf in rules:
         for t in rf.techniques:
@@ -98,6 +150,12 @@ def render_index(rules, results):
     names = mitre_attack.mitre_attack_techniques
     techniques = {t for rf in rules for t in rf.techniques}
     positives = sum(r["positive_events"] for r in results.values())
+    fired = [rf for rf in rules if (seen(rf, hits) or {}).get("sessions")]
+    seen_stat = ""
+    if hits:
+        seen_stat = (f'\n  <div class="stat"><span class="num">{len(fired)} of {len(rules)}</span>'
+                     f'<span class="label">rules fired on the honeypot, last {int(hits.get("days", 30))} days'
+                     f'</span></div>')
     negatives = sum(r["negative_events"] for r in results.values())
     rows = []
     for tac in sorted(by_tactic, key=lambda x: TACTIC_ORDER.index(x) if x in TACTIC_ORDER else 99):
@@ -116,7 +174,7 @@ def render_index(rules, results):
   <div class="rule-head"><a href="rules/{rf.name}/">{e(rf.main["title"])}</a>
     <span class="level {e(rf.main.get('level', ''))}">{e(rf.main.get('level', ''))}</span></div>
   <p>{e(rf.main.get("description", "").strip().split(". ")[0].rstrip("."))}.</p>
-  <div class="meta">{chips(rf)} <span class="kind">{kind}</span></div>
+  <div class="meta">{chips(rf)} <span class="kind">{kind}</span> {seen_badge(rf, hits)}</div>
 </li>""")
     body = f"""<section class="intro">
   <h1>Detection-as-code</h1>
@@ -129,7 +187,7 @@ def render_index(rules, results):
   <div class="stat"><span class="num">{len(rules)}</span><span class="label">rules</span></div>
   <div class="stat"><span class="num">{len(techniques)}</span><span class="label">ATT&amp;CK techniques</span></div>
   <div class="stat"><span class="num">{positives}</span><span class="label">attack test events</span></div>
-  <div class="stat"><span class="num">{negatives}</span><span class="label">look-alike test events</span></div>
+  <div class="stat"><span class="num">{negatives}</span><span class="label">look-alike test events</span></div>{seen_stat}
 </div>
 
 <h2>How a rule gets here</h2>
@@ -161,7 +219,7 @@ def render_index(rules, results):
                 "Microsoft Sentinel KQL.")
 
 
-def render_rule(rf, result, spl, kql):
+def render_rule(rf, result, spl, kql, hits=None):
     m = rf.main
     fps = "".join(f"<li>{e(x)}</li>" for x in m.get("falsepositives", []))
     kind = "Correlation" if rf.is_correlation else "Single event"
@@ -183,6 +241,7 @@ def render_rule(rf, result, spl, kql):
   <p>{"</p><p>".join(e(p.strip()) for p in m.get("description", "").strip().split("\n\n"))}</p>
   <h2>Tested</h2>
   <p>{tested} <a href="{REPO}/tree/main/tests/{rf.name}">See the test events</a>.</p>
+  {seen_section(rf, hits)}
   <h2>False positives</h2>
   <ul>{fps}</ul>
 </div>
@@ -216,18 +275,33 @@ def summary(rules, results):
     }
 
 
-def render(rules, results, outputs, out_dir):
+def rules_export(rules):
+    """The detection logic as plain JSON, for the honeypot's vps/detect.py."""
+    out = []
+    for rf in rules:
+        r = {"name": rf.name, "id": rf.main["id"], "title": rf.main["title"], "level": rf.main.get("level")}
+        if rf.is_correlation:
+            r["correlation"] = rf.main["correlation"]
+            r["base"] = {n: d["detection"] for n, d in rf.base.items()}
+        else:
+            r["detection"] = rf.main["detection"]
+        out.append(r)
+    return {"version": 1, "rules": out}
+
+
+def render(rules, results, outputs, out_dir, hits=None):
     out = Path(out_dir)
     if out.exists():
         shutil.rmtree(out)
     (out / "rules").mkdir(parents=True)
-    (out / "index.html").write_text(render_index(rules, results), encoding="utf-8")
+    (out / "index.html").write_text(render_index(rules, results, hits), encoding="utf-8")
     for rf in rules:
         spl = outputs[ROOT / "dist" / "spl" / f"{rf.name}.spl"]
         kql = outputs[ROOT / "dist" / "kql" / f"{rf.name}.kql"]
         d = out / "rules" / rf.name
         d.mkdir()
-        (d / "index.html").write_text(render_rule(rf, results[rf.name], spl, kql), encoding="utf-8")
+        (d / "index.html").write_text(render_rule(rf, results[rf.name], spl, kql, hits), encoding="utf-8")
+    (out / "rules.json").write_text(json.dumps(rules_export(rules), indent=1) + "\n", encoding="utf-8")
     (out / "summary.json").write_text(json.dumps(summary(rules, results), indent=1) + "\n", encoding="utf-8")
     for f in ("style.css", "favicon.svg", "og-image.png", "CNAME", "404.html"):
         src = ROOT / "site" / f

@@ -4,6 +4,8 @@
   python tools/build.py            validate + test + write dist/spl and dist/kql
   python tools/build.py --check    same, but fail if dist/ is out of date (CI)
   python tools/build.py --site DIR also render the static site into DIR
+      [--hits URL|FILE]             with the honeypot's detections.json ("Seen on the honeypot");
+                                    if it can't be read, the site is built without it
 
 Steps, any failure exits non-zero:
 1. pySigma's core validators, plus a check that every |re pattern is RE2-safe
@@ -21,6 +23,7 @@ import argparse
 import json
 import re
 import sys
+import urllib.request
 from pathlib import Path
 
 import yaml
@@ -261,10 +264,27 @@ def outputs(rules):
 
 # ---------------------------------------------------------------- main
 
+def load_hits(src):
+    """The honeypot's detections.json (written by uig-honeypot's vps/detect.py), or None."""
+    try:
+        if re.match(r"https?://", src):
+            with urllib.request.urlopen(src, timeout=30) as r:
+                data = json.load(r)
+        else:
+            data = json.loads(Path(src).read_text(encoding="utf-8"))
+        if not isinstance(data.get("rules"), dict):
+            raise ValueError("no rules object")
+        return data
+    except (OSError, ValueError, AttributeError) as e:
+        print(f"warning: no honeypot hits ({src}: {e}); building without them", file=sys.stderr)
+        return None
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--check", action="store_true", help="fail if dist/ is out of date")
     ap.add_argument("--site", type=Path, help="render the website into this directory")
+    ap.add_argument("--hits", help="the honeypot's detections.json (URL or file) for the site")
     a = ap.parse_args(argv)
     try:
         rules = load_rules()
@@ -295,7 +315,7 @@ def main(argv=None):
     print(f"{len(rules)} rules validated, tested and converted.")
     if a.site:
         import site_gen
-        site_gen.render(rules, results, out, a.site)
+        site_gen.render(rules, results, out, a.site, load_hits(a.hits) if a.hits else None)
         print(f"site written to {a.site}")
     return 0
 

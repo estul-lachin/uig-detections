@@ -174,8 +174,11 @@ def _compare(value, condition):
     return all(ops[k](v) for k, v in checks)
 
 
-def correlate(corr, base_matchers, events):
-    """Groups that fire: list of (bucket start, group key, value)."""
+def correlate(corr, base_matchers, events, events_out=None):
+    """Groups that fire: list of (bucket start, group key, value).
+
+    With events_out (a list), the events of every group that fires are appended to it.
+    """
     kind, span = corr["type"], seconds(corr["timespan"])
     group_by = corr.get("group-by", [])
     buckets = {}
@@ -201,4 +204,6 @@ def correlate(corr, base_matchers, events):
             raise Unsupported(f"correlation type {kind!r}")
         if ok:
             fired.append((b, key, value))
+            if events_out is not None:
+                events_out.extend(ev for ev, _ in items)
     return fired
