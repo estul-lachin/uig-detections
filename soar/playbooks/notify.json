@@ -1,0 +1,172 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vaultUri": {
+      "type": "String",
+      "defaultValue": ""
+    },
+    "sentinelApi": {
+      "type": "String",
+      "defaultValue": "2025-09-01"
+    }
+  },
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Http",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "incidentId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "incidentId"
+          ]
+        }
+      }
+    }
+  },
+  "actions": {
+    "Accepted": {
+      "type": "Response",
+      "kind": "Http",
+      "inputs": {
+        "statusCode": 202
+      },
+      "runAfter": {}
+    },
+    "Get_incident": {
+      "type": "Http",
+      "inputs": {
+        "method": "GET",
+        "uri": "https://management.azure.com@{triggerBody()?['incidentId']}?api-version=@{parameters('sentinelApi')}",
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://management.azure.com/"
+        }
+      },
+      "runAfter": {}
+    },
+    "Label_names": {
+      "type": "Select",
+      "inputs": {
+        "from": "@coalesce(body('Get_incident')?['properties']?['labels'], json('[]'))",
+        "select": "@item()?['labelName']"
+      },
+      "runAfter": {
+        "Get_incident": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Get_bot_token": {
+      "type": "Http",
+      "inputs": {
+        "method": "GET",
+        "uri": "@{parameters('vaultUri')}secrets/telegram-bot-token?api-version=7.4",
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://vault.azure.net"
+        }
+      },
+      "runtimeConfiguration": {
+        "secureData": {
+          "properties": [
+            "inputs",
+            "outputs"
+          ]
+        }
+      },
+      "runAfter": {}
+    },
+    "Get_chat_id": {
+      "type": "Http",
+      "inputs": {
+        "method": "GET",
+        "uri": "@{parameters('vaultUri')}secrets/telegram-chat-id?api-version=7.4",
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://vault.azure.net"
+        }
+      },
+      "runtimeConfiguration": {
+        "secureData": {
+          "properties": [
+            "inputs",
+            "outputs"
+          ]
+        }
+      },
+      "runAfter": {}
+    },
+    "Message": {
+      "type": "Compose",
+      "inputs": "🚨 @{body('Get_incident')?['properties']?['severity']} incident #@{body('Get_incident')?['properties']?['incidentNumber']}\n@{body('Get_incident')?['properties']?['title']}\n\nTactics: @{join(coalesce(body('Get_incident')?['properties']?['additionalData']?['tactics'], json('[]')), ', ')}\nTags: @{join(body('Label_names'), ', ')}\nAlerts: @{body('Get_incident')?['properties']?['additionalData']?['alertsCount']}\n\n@{body('Get_incident')?['properties']?['incidentUrl']}",
+      "runAfter": {
+        "Label_names": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Send_Telegram": {
+      "type": "Http",
+      "inputs": {
+        "method": "POST",
+        "uri": "https://api.telegram.org/bot@{body('Get_bot_token')?['value']}/sendMessage",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "chat_id": "@{body('Get_chat_id')?['value']}",
+          "text": "@{outputs('Message')}",
+          "disable_web_page_preview": true
+        },
+        "retryPolicy": {
+          "type": "fixed",
+          "count": 2,
+          "interval": "PT20S"
+        }
+      },
+      "runtimeConfiguration": {
+        "secureData": {
+          "properties": [
+            "inputs"
+          ]
+        }
+      },
+      "runAfter": {
+        "Message": [
+          "Succeeded"
+        ],
+        "Get_bot_token": [
+          "Succeeded"
+        ],
+        "Get_chat_id": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Mark_notified": {
+      "type": "Http",
+      "inputs": {
+        "method": "PUT",
+        "uri": "https://management.azure.com@{triggerBody()?['incidentId']}?api-version=@{parameters('sentinelApi')}",
+        "body": "@setProperty(body('Get_incident'), 'properties', setProperty(body('Get_incident')['properties'], 'labels', union(coalesce(body('Get_incident')['properties']?['labels'], json('[]')), json('[{\"labelName\":\"soar:notified\",\"labelType\":\"User\"}]'))))",
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://management.azure.com/"
+        }
+      },
+      "runAfter": {
+        "Send_Telegram": [
+          "Succeeded"
+        ]
+      }
+    }
+  },
+  "outputs": {}
+}

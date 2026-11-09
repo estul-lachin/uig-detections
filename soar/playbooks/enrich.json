@@ -1,0 +1,328 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "$connections": {
+      "type": "Object",
+      "defaultValue": {}
+    },
+    "workspaceId": {
+      "type": "String",
+      "defaultValue": ""
+    },
+    "vaultUri": {
+      "type": "String",
+      "defaultValue": ""
+    },
+    "sentinelApi": {
+      "type": "String",
+      "defaultValue": "2025-09-01"
+    }
+  },
+  "triggers": {
+    "Microsoft_Sentinel_incident": {
+      "type": "ApiConnectionWebhook",
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['azuresentinel']['connectionId']"
+          }
+        },
+        "body": {
+          "callback_url": "@{listCallbackUrl()}"
+        },
+        "path": "/incident-creation"
+      }
+    }
+  },
+  "actions": {
+    "IP_entities": {
+      "type": "Query",
+      "inputs": {
+        "from": "@coalesce(triggerBody()?['object']?['properties']?['relatedEntities'], json('[]'))",
+        "where": "@equals(item()?['kind'], 'Ip')"
+      },
+      "runAfter": {}
+    },
+    "Has_one_IP": {
+      "type": "If",
+      "expression": {
+        "and": [
+          {
+            "equals": [
+              "@length(body('IP_entities'))",
+              1
+            ]
+          }
+        ]
+      },
+      "actions": {},
+      "else": {
+        "actions": {
+          "Not_one_IP": {
+            "type": "Terminate",
+            "inputs": {
+              "runStatus": "Cancelled"
+            }
+          }
+        }
+      },
+      "runAfter": {
+        "IP_entities": [
+          "Succeeded"
+        ]
+      }
+    },
+    "IP": {
+      "type": "Compose",
+      "inputs": "@{replace(replace(first(body('IP_entities'))?['properties']?['address'], '\"', ''), '\\', '')}",
+      "runAfter": {
+        "Has_one_IP": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Get_AbuseIPDB_key": {
+      "type": "Http",
+      "inputs": {
+        "method": "GET",
+        "uri": "@{parameters('vaultUri')}secrets/abuseipdb-key?api-version=7.4",
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://vault.azure.net"
+        }
+      },
+      "runtimeConfiguration": {
+        "secureData": {
+          "properties": [
+            "inputs",
+            "outputs"
+          ]
+        }
+      },
+      "runAfter": {
+        "IP": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Check_AbuseIPDB": {
+      "type": "Http",
+      "inputs": {
+        "method": "GET",
+        "uri": "https://api.abuseipdb.com/api/v2/check",
+        "queries": {
+          "ipAddress": "@{outputs('IP')}",
+          "maxAgeInDays": "90"
+        },
+        "headers": {
+          "Key": "@{body('Get_AbuseIPDB_key')?['value']}",
+          "Accept": "application/json"
+        },
+        "retryPolicy": {
+          "type": "fixed",
+          "count": 2,
+          "interval": "PT20S"
+        }
+      },
+      "runtimeConfiguration": {
+        "secureData": {
+          "properties": [
+            "inputs"
+          ]
+        }
+      },
+      "runAfter": {
+        "Get_AbuseIPDB_key": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Abuse": {
+      "type": "Compose",
+      "inputs": "@if(equals(actions('Check_AbuseIPDB')?['status'], 'Succeeded'), body('Check_AbuseIPDB')?['data'], null)",
+      "runAfter": {
+        "Check_AbuseIPDB": [
+          "Succeeded",
+          "Failed",
+          "TimedOut",
+          "Skipped"
+        ]
+      }
+    },
+    "Honeypot_activity": {
+      "type": "Http",
+      "inputs": {
+        "method": "POST",
+        "uri": "https://management.azure.com@{parameters('workspaceId')}/api/query?api-version=2020-08-01",
+        "body": {
+          "timespan": "P30D",
+          "query": "let ip = \"@{outputs('IP')}\";\nlet esc = (s: string) { replace_string(replace_string(replace_string(s, \"&\", \"&amp;\"), \"<\", \"&lt;\"), \">\", \"&gt;\") };\nCowrie_CL\n| where src_ip == ip\n| summarize Sessions = dcount(session), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated),\n    LoginsAccepted = countif(eventid == \"cowrie.login.success\"), LoginsFailed = countif(eventid == \"cowrie.login.failed\"),\n    Commands = countif(eventid == \"cowrie.command.input\"), Downloads = countif(eventid startswith \"cowrie.session.file_download\"),\n    Protocols = make_set(protocol), SampleCommands = make_set_if(esc(substring(input, 0, 160)), eventid == \"cowrie.command.input\", 5)\n| extend Protocols = strcat_array(Protocols, \", \"), SampleCommands = strcat_array(SampleCommands, \"</code><br><code>\")"
+        },
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://management.azure.com/"
+        }
+      },
+      "runAfter": {
+        "IP": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Activity": {
+      "type": "Compose",
+      "inputs": "@if(and(equals(actions('Honeypot_activity')?['status'], 'Succeeded'), greater(length(coalesce(body('Honeypot_activity')?['tables']?[0]?['rows'], json('[]'))), 0)), body('Honeypot_activity')['tables'][0]['rows'][0], null)",
+      "runAfter": {
+        "Honeypot_activity": [
+          "Succeeded",
+          "Failed",
+          "TimedOut"
+        ]
+      }
+    },
+    "Abuse_bucket": {
+      "type": "Compose",
+      "inputs": "@if(equals(outputs('Abuse'), null), 'unknown', if(less(int(outputs('Abuse')?['abuseConfidenceScore']), 1), '0', if(less(int(outputs('Abuse')?['abuseConfidenceScore']), 25), '1-24', if(less(int(outputs('Abuse')?['abuseConfidenceScore']), 75), '25-74', '75-100'))))",
+      "runAfter": {
+        "Abuse": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Labels": {
+      "type": "Compose",
+      "inputs": "@union(createArray(json(concat('{\"labelName\":\"abuse:', outputs('Abuse_bucket'), '\",\"labelType\":\"User\"}')), json('{\"labelName\":\"soar:enriched\",\"labelType\":\"User\"}')), if(and(not(equals(outputs('Activity'), null)), greater(int(outputs('Activity')[6]), 0)), createArray(json('{\"labelName\":\"has-download\",\"labelType\":\"User\"}')), json('[]')), if(equals(outputs('Abuse')?['isTor'], true), createArray(json('{\"labelName\":\"tor\",\"labelType\":\"User\"}')), json('[]')))",
+      "runAfter": {
+        "Abuse_bucket": [
+          "Succeeded"
+        ],
+        "Activity": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Label_names": {
+      "type": "Select",
+      "inputs": {
+        "from": "@outputs('Labels')",
+        "select": "@item()?['labelName']"
+      },
+      "runAfter": {
+        "Labels": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Comment": {
+      "type": "Compose",
+      "inputs": "<p><b>SOAR enrichment for @{outputs('IP')}</b></p><p><b>AbuseIPDB</b>: @{if(equals(outputs('Abuse'), null), 'lookup failed', concat('score ', string(outputs('Abuse')?['abuseConfidenceScore']), '/100, ', string(outputs('Abuse')?['totalReports']), ' reports from ', string(outputs('Abuse')?['numDistinctUsers']), ' users, last reported ', coalesce(string(outputs('Abuse')?['lastReportedAt']), 'never'), '<br>', coalesce(string(outputs('Abuse')?['isp']), '?'), ' · ', coalesce(string(outputs('Abuse')?['usageType']), '?'), ' · ', coalesce(string(outputs('Abuse')?['countryCode']), '?'), if(equals(outputs('Abuse')?['isTor'], true), ' · Tor exit', '')))} · <a href=\"https://www.abuseipdb.com/check/@{outputs('IP')}\">AbuseIPDB</a></p><p><b>Honeypot, last 30 days</b>: @{if(equals(outputs('Activity'), null), 'query failed or no events', concat(string(outputs('Activity')[0]), ' sessions (', string(outputs('Activity')[7]), '), ', string(outputs('Activity')[3]), ' logins accepted, ', string(outputs('Activity')[4]), ' failed, ', string(outputs('Activity')[5]), ' commands, ', string(outputs('Activity')[6]), ' downloads<br>first seen ', string(outputs('Activity')[1]), ', last seen ', string(outputs('Activity')[2]), if(empty(outputs('Activity')[8]), '', concat('<br>Sample commands:<br><code>', outputs('Activity')[8], '</code>'))))}</p><p>Tags: @{join(body('Label_names'), ', ')}</p>",
+      "runAfter": {
+        "Label_names": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Add_comment": {
+      "type": "Http",
+      "inputs": {
+        "method": "PUT",
+        "uri": "https://management.azure.com@{triggerBody()?['object']?['id']}/comments/@{guid()}?api-version=@{parameters('sentinelApi')}",
+        "body": {
+          "properties": {
+            "message": "@{outputs('Comment')}"
+          }
+        },
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://management.azure.com/"
+        }
+      },
+      "runAfter": {
+        "Comment": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Get_incident": {
+      "type": "Http",
+      "inputs": {
+        "method": "GET",
+        "uri": "https://management.azure.com@{triggerBody()?['object']?['id']}?api-version=@{parameters('sentinelApi')}",
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://management.azure.com/"
+        }
+      },
+      "runAfter": {
+        "Add_comment": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Close_it": {
+      "type": "Compose",
+      "inputs": "@and(equals(body('Get_incident')?['properties']?['severity'], 'Low'), equals(outputs('Abuse_bucket'), '75-100'), not(equals(body('Get_incident')?['properties']?['status'], 'Closed')))",
+      "runAfter": {
+        "Get_incident": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Update_incident": {
+      "type": "Http",
+      "inputs": {
+        "method": "PUT",
+        "uri": "https://management.azure.com@{triggerBody()?['object']?['id']}?api-version=@{parameters('sentinelApi')}",
+        "body": "@setProperty(body('Get_incident'), 'properties', if(outputs('Close_it'), union(setProperty(body('Get_incident')['properties'], 'labels', union(coalesce(body('Get_incident')['properties']?['labels'], json('[]')), outputs('Labels'), if(outputs('Close_it'), json('[{\"labelName\":\"soar:auto-closed\",\"labelType\":\"User\"}]'), json('[]')))), json('{\"status\":\"Closed\",\"classification\":\"TruePositive\",\"classificationReason\":\"SuspiciousActivity\",\"classificationComment\":\"Closed by SOAR: Low severity on a honeypot, and AbuseIPDB rates the source 75-100. See the enrichment comment.\"}')), setProperty(body('Get_incident')['properties'], 'labels', union(coalesce(body('Get_incident')['properties']?['labels'], json('[]')), outputs('Labels'), if(outputs('Close_it'), json('[{\"labelName\":\"soar:auto-closed\",\"labelType\":\"User\"}]'), json('[]'))))))",
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://management.azure.com/"
+        }
+      },
+      "runAfter": {
+        "Close_it": [
+          "Succeeded"
+        ]
+      }
+    },
+    "If_High_notify": {
+      "type": "If",
+      "expression": {
+        "and": [
+          {
+            "equals": [
+              "@body('Get_incident')?['properties']?['severity']",
+              "High"
+            ]
+          }
+        ]
+      },
+      "actions": {
+        "Notify": {
+          "type": "Workflow",
+          "inputs": {
+            "host": {
+              "workflow": {
+                "id": "__NOTIFY_WORKFLOW_ID__"
+              },
+              "triggerName": "manual"
+            },
+            "body": {
+              "incidentId": "@triggerBody()?['object']?['id']"
+            }
+          }
+        }
+      },
+      "else": {
+        "actions": {}
+      },
+      "runAfter": {
+        "Update_incident": [
+          "Succeeded"
+        ]
+      }
+    }
+  },
+  "outputs": {}
+}

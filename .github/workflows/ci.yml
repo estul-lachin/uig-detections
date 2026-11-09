@@ -32,6 +32,11 @@ jobs:
       - run: >-
           python tools/build.py --check --site _site
           --hits https://raw.githubusercontent.com/estul-lachin/uig-honeypot-data/main/detections.json
+      # The SOAR template must compile without linter warnings, and its scripts must parse.
+      - run: |
+          az bicep install
+          az bicep lint -f soar/main.bicep --diagnostics-format sarif | python3 -c 'import json,sys; r=json.load(sys.stdin)["runs"][0]["results"]; [print(x["ruleId"], x["message"]["text"]) for x in r]; sys.exit(bool(r))'
+          for f in soar/*.sh; do bash -n "$f"; done
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main'
         with:

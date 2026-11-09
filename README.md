@@ -20,6 +20,8 @@ tools/sigma_eval.py        the evaluator the tests run on
 tools/splunk_check.py      run the generated SPL in a real Splunk on the same test events
 tools/sentinel_check.py    run the generated KQL in Microsoft Sentinel on the same test events
 tools/sentinel_deploy.py   deploy dist/sentinel/ as analytics rules (updates in place)
+tools/soar_e2e.py          end-to-end test of the SOAR chain on the real workspace
+soar/                      Sentinel playbooks and their infrastructure in Bicep (see soar/README.md)
 ```
 
 ## Seen on the honeypot
