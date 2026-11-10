@@ -1,0 +1,4 @@
+{"timestamp":"2026-11-07T10:02:00.000000Z","src_ip":"198.51.100.50","src_port":40100,"dest_ip":"192.0.2.10","dest_port":23,"proto":"TCP","signature_id":9000030,"rev":1,"signature":"ET CINS Example Poor Reputation IP group 7","category":"Misc Attack","severity":2,"signature_severity":"Major"}
+{"eventid":"cowrie.login.success","timestamp":"2026-11-07T10:02:30.000000Z","src_ip":"198.51.100.50","session":"g1","username":"root","password":"vizxv"}
+{"timestamp":"2026-11-07T12:10:00.000000Z","src_ip":"198.51.100.51","src_port":40100,"dest_ip":"192.0.2.10","dest_port":22,"proto":"TCP","signature_id":9000031,"rev":1,"signature":"ET DROP Example Block Listed Source group 3","category":"Misc Attack","severity":2,"signature_severity":"Minor"}
+{"eventid":"cowrie.login.success","timestamp":"2026-11-07T12:30:00.000000Z","src_ip":"198.51.100.51","session":"g2","username":"admin","password":"admin"}

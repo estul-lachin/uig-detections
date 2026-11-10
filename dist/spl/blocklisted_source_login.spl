@@ -1,0 +1,7 @@
+``` Blocklisted Source Logs In. Generated from rules/blocklisted_source_login.yml by tools/build.py; do not edit. ```
+| multisearch
+[ search index=honeypot sourcetype=suricata:alert signature IN ("ET CINS *", "ET DROP *", "ET COMPROMISED *") | eval event_type="suricata_reputation" ]
+[ search index=honeypot sourcetype=cowrie:json eventid="cowrie.login.success" | eval event_type="cowrie_login_success" ]
+| bin _time span=1h
+| stats dc(event_type) as event_type_count by _time src_ip
+| search event_type_count >= 2

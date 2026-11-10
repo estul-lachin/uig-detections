@@ -2,9 +2,10 @@
 """Run the generated KQL in Microsoft Sentinel against the test events.
 
 The Sentinel counterpart of splunk_check.py. Uploads every rule's test events
-to the Cowrie_Test_CL table (through its own data collection rule), runs each
-rule's KQL scoped to one rule's events, and requires the same result as the
-evaluator: every positive event (single-event rules) or at least one group
+to the Cowrie_Test_CL and Suricata_Test_CL tables (through their own data
+collection rule; uig-honeypot's `azure/suricata.sh --test` adds the Suricata
+one), runs each rule's KQL scoped to one rule's events, and requires the same
+result as the evaluator: every positive event (single-event rules) or at least one group
 (correlations) for match.jsonl, nothing for nomatch.jsonl.
 
 Uses the Azure CLI's login (`az login`); the signed-in user needs the
@@ -29,10 +30,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import build  # noqa: E402
 
-TEST_TABLE = "Cowrie_Test_CL"
-FIELDS = {"timestamp": str, "eventid": str, "src_ip": str, "src_port": int, "dst_port": int, "session": str,
-          "protocol": str, "username": str, "password": str, "input": str, "url": str, "shasum": str,
-          "version": str, "sensor": str}
+# Per log source (build.SOURCES): the test table, its stream on the test DCR, and its columns.
+TEST = {
+    "cowrie": {"table": "Cowrie_Test_CL", "stream": "Custom-CowrieRaw", "fields": {
+        "timestamp": str, "eventid": str, "src_ip": str, "src_port": int, "dst_port": int, "session": str,
+        "protocol": str, "username": str, "password": str, "input": str, "url": str, "shasum": str,
+        "version": str, "sensor": str}},
+    "suricata": {"table": "Suricata_Test_CL", "stream": "Custom-SuricataRaw", "fields": {
+        "timestamp": str, "flow_id": int, "src_ip": str, "src_port": int, "dest_ip": str, "dest_port": int,
+        "proto": str, "app_proto": str, "signature_id": int, "rev": int, "signature": str, "category": str,
+        "severity": int, "signature_severity": str, "cve": str, "mitre_tactic": str, "mitre_technique": str,
+        "sensor": str}},
+}
 
 
 def az(*args):
@@ -75,8 +84,8 @@ class Workspace:
         self.ingest_tok = token("https://monitor.azure.com")
         self.query_tok = token("https://api.loganalytics.io")
 
-    def upload(self, rows):
-        url = f"{self.dce}/dataCollectionRules/{self.dcr}/streams/Custom-CowrieRaw?api-version=2023-01-01"
+    def upload(self, stream, rows):
+        url = f"{self.dce}/dataCollectionRules/{self.dcr}/streams/{stream}?api-version=2023-01-01"
         for i in range(0, len(rows), 500):
             http(url, rows[i:i + 500], self.ingest_tok, gz=True)
 
@@ -107,18 +116,23 @@ def main(argv=None):
     oldest = min(datetime.date.fromisoformat(e["timestamp"][:10]) for evs in data.values() for e in evs)
     yesterday = datetime.datetime.now(datetime.timezone.utc).date() - datetime.timedelta(days=1)
     days = (yesterday - oldest).days
-    rows = []
+    rows = {source: [] for source in TEST}
     for (name, kind), evs in data.items():
         for ev in shift(evs, days):
-            row = {k: t(ev[k]) for k, t in FIELDS.items() if k in ev}
+            source = build.event_source(ev)
+            row = {k: t(ev[k]) for k, t in TEST[source]["fields"].items() if k in ev}
             row["sensor"] = f"{run_id}:{name}/{kind}"
-            rows.append(row)
-    print(f"uploading {len(rows)} test events (run {run_id}, shifted {days} days)")
-    ws.upload(rows)
+            rows[source].append(row)
+    total = sum(map(len, rows.values()))
+    print(f"uploading {total} test events (run {run_id}, shifted {days} days)")
+    for source, r in rows.items():
+        if r:
+            ws.upload(TEST[source]["stream"], r)
 
-    scope_all = f'{TEST_TABLE} | where sensor startswith "{run_id}:"'
+    scope_all = "union " + ", ".join(f'({t["table"]} | where sensor startswith "{run_id}:")'
+                                     for t in TEST.values())
     for _ in range(90):  # ingestion takes a few minutes
-        if ws.count(scope_all) >= len(rows):
+        if ws.count(scope_all) >= total:
             break
         time.sleep(10)
     else:
@@ -130,8 +144,9 @@ def main(argv=None):
         want = build.run_tests(rf)
         got = {}
         for kind in ("match", "nomatch"):
-            scoped = f'let T = {TEST_TABLE} | where sensor == "{run_id}:{rf.name}/{kind}";\n'
-            got[kind] = ws.count(scoped + build.to_kql(rf, "T"))
+            scoped = "".join(f'let T_{source} = {t["table"]} | where sensor == "{run_id}:{rf.name}/{kind}";\n'
+                             for source, t in TEST.items())
+            got[kind] = ws.count(scoped + build.to_kql(rf, {source: f"T_{source}" for source in TEST}))
         if rf.is_correlation:
             ok = got["match"] >= 1 and got["nomatch"] == 0
         else:

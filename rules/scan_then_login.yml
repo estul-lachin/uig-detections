@@ -1,0 +1,60 @@
+title: Suricata Scan Alert
+name: suricata_scan
+id: bfe7080d-ad52-40b8-b3de-251d5684267a
+status: experimental
+description: Base rule for the scan-then-login correlation. Any ET SCAN signature.
+author: Estul Lachin
+date: 2026-11-10
+logsource:
+  product: suricata
+detection:
+  selection:
+    signature|startswith: 'ET SCAN '
+  condition: selection
+level: informational
+---
+title: Cowrie Successful Login (Scan Correlation)
+name: cowrie_login_success
+id: 2b3d71da-f012-41c6-abaf-3857ce2f0e51
+status: experimental
+description: Base rule for the scan-then-login correlation.
+author: Estul Lachin
+date: 2026-11-10
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.login.success
+  condition: selection
+level: informational
+---
+title: Scanned Then Logged In
+id: c3d1c2e7-602e-4cb4-a4c8-52a99b66c1e5
+status: experimental
+description: |
+  One source sets off a Suricata scan signature and logs in to Cowrie within the same hour:
+  reconnaissance and initial access from the same address, joined across the two sensors by
+  src_ip. Most scanners never log in, and most bots that log in never trip a scan signature,
+  so the pair is rarer and more deliberate than either half. Buckets are fixed hours, so a pair
+  that straddles a boundary is missed.
+references:
+  - https://attack.mitre.org/techniques/T1595/
+  - https://attack.mitre.org/techniques/T1078/
+author: Estul Lachin
+date: 2026-11-10
+tags:
+  - attack.reconnaissance
+  - attack.t1595
+  - attack.initial-access
+  - attack.t1078
+correlation:
+  type: temporal
+  rules:
+    - suricata_scan
+    - cowrie_login_success
+  group-by:
+    - src_ip
+  timespan: 1h
+falsepositives:
+  - An administrator who port-scans a host and then logs in to it
+level: medium

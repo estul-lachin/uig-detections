@@ -1,0 +1,55 @@
+{
+  "id": "f43d56d0-fad2-4a84-a60f-bcdae35dec14",
+  "_comment": "Blocklisted Source Logs In. Generated from rules/blocklisted_source_login.yml by tools/build.py; do not edit.",
+  "kind": "Scheduled",
+  "properties": {
+    "displayName": "Blocklisted Source Logs In",
+    "description": "A source on an ET reputation list (CINS, Spamhaus DROP, known compromised hosts) logs in to Cowrie within the same hour as Suricata flags it. The lists alone fire on a hundred-odd addresses a day, mostly probing database ports; joining them to a successful login keeps the few that got a shell. Buckets are fixed hours, so a pair that straddles a boundary is missed.",
+    "severity": "Medium",
+    "enabled": true,
+    "query": "// Groups with at least one event ingested since the last run (see tools/build.py)\nlet CowrieNew = Cowrie_CL | extend Ingested = ingestion_time();\nlet SuricataNew = Suricata_CL | extend Ingested = ingestion_time();\nunion\n    (SuricataNew | where signature startswith \"ET CINS \" or signature startswith \"ET DROP \" or signature startswith \"ET COMPROMISED \" | extend event_type = \"suricata_reputation\"),\n    (CowrieNew | where eventid =~ \"cowrie.login.success\" | extend event_type = \"cowrie_login_success\")\n| summarize event_type_count = dcount(event_type), new_events = countif(Ingested > ago(1h)) by bin(TimeGenerated, 1h), src_ip\n| where event_type_count >= 2\n| where new_events > 0\n// One alert per source IP\n| summarize Matches = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated) by src_ip",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT2H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": [
+      "InitialAccess"
+    ],
+    "techniques": [
+      "T1078"
+    ],
+    "entityMappings": [
+      {
+        "entityType": "IP",
+        "fieldMappings": [
+          {
+            "identifier": "Address",
+            "columnName": "src_ip"
+          }
+        ]
+      }
+    ],
+    "customDetails": {
+      "Matches": "Matches",
+      "FirstSeen": "FirstSeen",
+      "LastSeen": "LastSeen"
+    },
+    "alertDetailsOverride": {
+      "alertDisplayNameFormat": "Blocklisted Source Logs In from {{src_ip}}"
+    },
+    "eventGroupingSettings": {
+      "aggregationKind": "AlertPerResult"
+    },
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "P1D",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

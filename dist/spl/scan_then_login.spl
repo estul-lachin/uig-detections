@@ -1,0 +1,7 @@
+``` Scanned Then Logged In. Generated from rules/scan_then_login.yml by tools/build.py; do not edit. ```
+| multisearch
+[ search index=honeypot sourcetype=suricata:alert signature="ET SCAN *" | eval event_type="suricata_scan" ]
+[ search index=honeypot sourcetype=cowrie:json eventid="cowrie.login.success" | eval event_type="cowrie_login_success" ]
+| bin _time span=1h
+| stats dc(event_type) as event_type_count by _time src_ip
+| search event_type_count >= 2

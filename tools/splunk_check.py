@@ -7,16 +7,18 @@ index, the generated SPL runs scoped to that index and file, and the result
 must agree with the evaluator: every positive event (single-event rules) or at
 least one group (correlations) for match.jsonl, nothing for nomatch.jsonl.
 
-Needs a running Splunk container that has the cowrie:json sourcetype, e.g. the
-one from uig-honeypot (./hp siem up):
+Needs a running Splunk container that has the cowrie:json and suricata:alert
+sourcetypes, e.g. the one from uig-honeypot (./hp siem up):
 
   SPLUNK_PASSWORD=... python tools/splunk_check.py [--container NAME]
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -24,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import build  # noqa: E402
 
 SPLUNK = "/opt/splunk/bin/splunk"
+SOURCETYPES = {"cowrie": "cowrie:json", "suricata": "suricata:alert"}
 
 
 class Splunk:
@@ -60,15 +63,24 @@ def main(argv=None):
     failures = 0
     try:
         expected_events = 0
-        for rf in rules:
-            for kind in ("match", "nomatch"):
-                src = build.TESTS / rf.name / f"{kind}.jsonl"
-                dest = f"/tmp/{index}-{rf.name}-{kind}.jsonl"
-                subprocess.run(["docker", "cp", str(src), f"{a.container}:{dest}"], check=True)
-                subprocess.run(["docker", "exec", "-u", "root", a.container, "chmod", "644", dest], check=True)
-                sp.cli("add", "oneshot", dest, "-index", index, "-sourcetype", "cowrie:json",
-                       "-rename-source", f"{rf.name}/{kind}")
-                expected_events += len(build.read_events(src))
+        with tempfile.TemporaryDirectory() as tmp:
+            for rf in rules:
+                for kind in ("match", "nomatch"):
+                    # A correlation's tests can mix Cowrie events and Suricata alerts: one file per
+                    # source, each with its own sourcetype, both under the same source name.
+                    by_source = {}
+                    for ev in build.read_events(build.TESTS / rf.name / f"{kind}.jsonl"):
+                        by_source.setdefault(build.event_source(ev), []).append(ev)
+                    for source, evs in by_source.items():
+                        name = f"{index}-{rf.name}-{kind}-{source}.jsonl"
+                        src, dest = Path(tmp) / name, f"/tmp/{name}"
+                        src.write_text("".join(json.dumps(ev) + "\n" for ev in evs), encoding="utf-8")
+                        subprocess.run(["docker", "cp", str(src), f"{a.container}:{dest}"], check=True)
+                        subprocess.run(["docker", "exec", "-u", "root", a.container, "chmod", "644", dest],
+                                       check=True)
+                        sp.cli("add", "oneshot", dest, "-index", index, "-sourcetype", SOURCETYPES[source],
+                               "-rename-source", f"{rf.name}/{kind}")
+                        expected_events += len(evs)
         for _ in range(60):  # oneshot indexing is asynchronous
             if sp.count(f"index={index} earliest=0") >= expected_events:
                 break
@@ -81,7 +93,7 @@ def main(argv=None):
             got = {}
             for kind in ("match", "nomatch"):
                 scope = f'index={index} source="{rf.name}/{kind}" earliest=0'
-                got[kind] = sp.count(build.to_spl(rf, scope))
+                got[kind] = sp.count(build.to_spl(rf, {source: scope for source in build.SOURCES}))
             if rf.is_correlation:
                 ok = got["match"] >= 1 and got["nomatch"] == 0
             else:

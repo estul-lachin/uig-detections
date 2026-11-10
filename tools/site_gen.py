@@ -107,14 +107,36 @@ def plural(n, word):
     return f"{n:,} {word}{'' if n == 1 else 's'}"
 
 
+def reach(h):
+    """How widely a rule fired: Cowrie sessions, or for Suricata-only rules (no sessions) sources."""
+    sessions = int(h.get("sessions") or 0)
+    return plural(sessions, "session") if sessions else plural(int(h.get("sources") or 0), "source")
+
+
+def fired(h):
+    """Older detections.json files have no alert count for every rule; sessions imply a hit."""
+    return bool(int(h.get("alerts") or 0) or int(h.get("sessions") or 0))
+
+
+TABLES = {"cowrie": ("Cowrie_CL", "Cowrie's field names"),
+          "suricata": ("Suricata_CL", "Suricata's alerts, flattened to one row each")}
+
+
+def tables_note(rf):
+    """Which custom tables the KQL reads, for the rule page."""
+    parts = [f"<code>{TABLES[p][0]}</code> ({TABLES[p][1]})" for p in rf.products]
+    if len(parts) == 1:
+        return f"For the custom table {parts[0]}."
+    return f"For the custom tables {' and '.join(parts)}, joined by <code>src_ip</code>."
+
+
 def seen_badge(rf, hits):
     h = seen(rf, hits)
     if h is None:
         return ""
-    n = int(h.get("sessions") or 0)
-    if not n:
+    if not fired(h):
         return f'<span class="seen none">not seen in {int(hits.get("days", 30))} days</span>'
-    return f'<span class="seen">seen in {plural(n, "session")}</span>'
+    return f'<span class="seen">seen {"from" if not h.get("sessions") else "in"} {reach(h)}</span>'
 
 
 def seen_section(rf, hits):
@@ -123,14 +145,17 @@ def seen_section(rf, hits):
         return ""
     days = int(hits.get("days", 30))
     asof = e(str(hits.get("generated_at", "")).replace("T", " ").replace("Z", " UTC"))
-    n = int(h.get("sessions") or 0)
-    if not n:
+    if not fired(h):
         text = (f"<p>Has not fired in the last {days} days (as of {asof}). The tests above still run on every "
                 f"change, so the rule is ready when the behaviour shows up.</p>")
     else:
         alerts = int(h.get("alerts") or 0)
-        what = (f"raised {plural(alerts, 'alert')} covering {plural(n, 'session')}" if rf.is_correlation
-                else f"fired in {plural(n, 'session')} ({plural(alerts, 'matching command')})")
+        if rf.is_correlation:
+            what = f"raised {plural(alerts, 'alert')} covering {reach(h)}"
+        elif rf.products == ["suricata"]:
+            what = f"fired {plural(alerts, 'time')} from {reach(h)}"
+        else:
+            what = f"fired in {reach(h)} ({plural(alerts, 'matching command')})"
         text = (f"<p>In the last {days} days (as of {asof}) this rule {what}, first on "
                 f"{e(str(h.get('first_seen')))} and last on {e(str(h.get('last_seen')))}.</p>")
         if h.get("example"):
@@ -175,10 +200,10 @@ def render_index(rules, results, hits=None, soar=None):
     names = mitre_attack.mitre_attack_techniques
     techniques = {t for rf in rules for t in rf.techniques}
     positives = sum(r["positive_events"] for r in results.values())
-    fired = [rf for rf in rules if (seen(rf, hits) or {}).get("sessions")]
+    fired_rules = [rf for rf in rules if fired(seen(rf, hits) or {})]
     seen_stat = ""
     if hits:
-        seen_stat = (f'\n  <div class="stat"><span class="num">{len(fired)} of {len(rules)}</span>'
+        seen_stat = (f'\n  <div class="stat"><span class="num">{len(fired_rules)} of {len(rules)}</span>'
                      f'<span class="label">rules fired on the honeypot, last {int(hits.get("days", 30))} days'
                      f'</span></div>')
     negatives = sum(r["negative_events"] for r in results.values())
@@ -203,10 +228,11 @@ def render_index(rules, results, hits=None, soar=None):
 </li>""")
     body = f"""<section class="intro">
   <h1>Detection-as-code</h1>
-  <p class="lead">Detections for SSH and Telnet attacks, written once in <a href="https://sigmahq.io/">Sigma</a> and
-    converted to Splunk SPL and Microsoft Sentinel KQL. Every rule is tested in CI against attack events that
-    must match and look-alike events that must not. The behaviour comes from the
-    <a href="https://honeypot.uig.me/">live honeypot</a>.</p>
+  <p class="lead">Detections for SSH and Telnet attacks and the network traffic around them, written once in
+    <a href="https://sigmahq.io/">Sigma</a> and converted to Splunk SPL and Microsoft Sentinel KQL. Every rule is
+    tested in CI against attack events that must match and look-alike events that must not. The behaviour comes
+    from the <a href="https://honeypot.uig.me/">live honeypot</a>: Cowrie's shell sessions and the Suricata IDS
+    beside it, joined by source IP where a rule needs both.</p>
 </section>
 <div class="stats">
   <div class="stat"><span class="num">{len(rules)}</span><span class="label">rules</span></div>
@@ -240,8 +266,8 @@ def render_index(rules, results, hits=None, soar=None):
 <ul class="rules">{"".join(cards)}</ul>
 """
     return page("Detection-as-code · Estul Lachin", body, 0,
-                "Sigma detections for SSH and Telnet attacks, tested in CI and converted to Splunk SPL and "
-                "Microsoft Sentinel KQL.")
+                "Sigma detections for SSH and Telnet attacks and the network traffic around them (Cowrie and "
+                "Suricata), tested in CI and converted to Splunk SPL and Microsoft Sentinel KQL.")
 
 
 def render_rule(rf, result, spl, kql, hits=None):
@@ -281,7 +307,7 @@ def render_rule(rf, result, spl, kql, hits=None):
 
 <h2>Microsoft Sentinel KQL</h2>
 <pre class="code"><code>{e(kql.strip())}</code></pre>
-<p class="meta">For the custom table <code>Cowrie_CL</code>, which has Cowrie's field names. Verified in
+<p class="meta">{tables_note(rf)} Verified in
   Microsoft Sentinel against the test events, and deployed there as a scheduled analytics rule that runs hourly
   on the live honeypot feed. <a href="{REPO}/blob/main/dist/kql/{rf.name}.kql">dist/kql/{e(rf.name)}.kql</a> ·
   <a href="{REPO}/blob/main/dist/sentinel/{rf.name}.json">analytics rule</a></p>

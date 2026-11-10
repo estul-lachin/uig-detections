@@ -1,0 +1,6 @@
+// Blocklisted Source Logs In. Generated from rules/blocklisted_source_login.yml by tools/build.py; do not edit.
+union
+    (Suricata_CL | where signature startswith "ET CINS " or signature startswith "ET DROP " or signature startswith "ET COMPROMISED " | extend event_type = "suricata_reputation"),
+    (Cowrie_CL | where eventid =~ "cowrie.login.success" | extend event_type = "cowrie_login_success")
+| summarize event_type_count = dcount(event_type) by bin(TimeGenerated, 1h), src_ip
+| where event_type_count >= 2

@@ -1,0 +1,59 @@
+title: Suricata IP Reputation Alert
+name: suricata_reputation
+id: 7fd2dd6e-2f56-4650-a5d3-75006e0288bd
+status: experimental
+description: Base rule for the blocklisted-source-login correlation. ET's CINS, DROP and COMPROMISED lists.
+author: Estul Lachin
+date: 2026-11-10
+logsource:
+  product: suricata
+detection:
+  selection:
+    signature|startswith:
+      - 'ET CINS '
+      - 'ET DROP '
+      - 'ET COMPROMISED '
+  condition: selection
+level: informational
+---
+title: Cowrie Successful Login (Reputation Correlation)
+name: cowrie_login_success
+id: bbc6bc1b-35ec-4dba-b467-da1d659468a9
+status: experimental
+description: Base rule for the blocklisted-source-login correlation.
+author: Estul Lachin
+date: 2026-11-10
+logsource:
+  product: cowrie
+detection:
+  selection:
+    eventid: cowrie.login.success
+  condition: selection
+level: informational
+---
+title: Blocklisted Source Logs In
+id: f43d56d0-fad2-4a84-a60f-bcdae35dec14
+status: experimental
+description: |
+  A source on an ET reputation list (CINS, Spamhaus DROP, known compromised hosts) logs in to Cowrie
+  within the same hour as Suricata flags it. The lists alone fire on a hundred-odd addresses a day,
+  mostly probing database ports; joining them to a successful login keeps the few that got a shell.
+  Buckets are fixed hours, so a pair that straddles a boundary is missed.
+references:
+  - https://attack.mitre.org/techniques/T1078/
+author: Estul Lachin
+date: 2026-11-10
+tags:
+  - attack.initial-access
+  - attack.t1078
+correlation:
+  type: temporal
+  rules:
+    - suricata_reputation
+    - cowrie_login_success
+  group-by:
+    - src_ip
+  timespan: 1h
+falsepositives:
+  - A legitimate user behind an address that shares a reputation listing (CGNAT, a VPN exit)
+level: medium

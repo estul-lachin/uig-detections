@@ -1,0 +1,6 @@
+// Scanned Then Logged In. Generated from rules/scan_then_login.yml by tools/build.py; do not edit.
+union
+    (Suricata_CL | where signature startswith "ET SCAN " | extend event_type = "suricata_scan"),
+    (Cowrie_CL | where eventid =~ "cowrie.login.success" | extend event_type = "cowrie_login_success")
+| summarize event_type_count = dcount(event_type) by bin(TimeGenerated, 1h), src_ip
+| where event_type_count >= 2

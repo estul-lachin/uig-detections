@@ -1,0 +1,2 @@
+{"timestamp":"2026-11-07T10:05:00.000000Z","src_ip":"198.51.100.40","src_port":40100,"dest_ip":"192.0.2.10","dest_port":3306,"proto":"TCP","signature_id":9000020,"rev":1,"signature":"ET SCAN Example Inbound Port Sweep","category":"Attempted Information Leak","severity":2,"signature_severity":"Major"}
+{"eventid":"cowrie.login.success","timestamp":"2026-11-07T10:40:00.000000Z","src_ip":"198.51.100.40","session":"f1","username":"root","password":"root"}

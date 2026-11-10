@@ -17,6 +17,10 @@ Steps, any failure exits non-zero:
 3. Conversion: SPL with pySigma's Splunk backend, scoped to the honeypot index;
    KQL with the Kusto backend for single-event rules and kql_correlation() below
    for correlations, which that backend doesn't support.
+
+Two log sources, chosen by each rule's logsource.product (see SOURCES): Cowrie
+events and Suricata alerts. A temporal correlation may combine both, grouped by
+src_ip, which both use for the remote address.
 """
 
 import argparse
@@ -38,8 +42,15 @@ import sigma_eval  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 RULES, TESTS, DIST = ROOT / "rules", ROOT / "tests", ROOT / "dist"
-SPL_SCOPE = "index=honeypot sourcetype=cowrie:json"
-KQL_TABLE = "Cowrie_CL"
+# Per logsource.product: the Splunk scope, the Sentinel table, and the KQL variable that
+# sentinel_rule() binds to that table's newly ingested rows.
+SOURCES = {
+    "cowrie": {"spl": "index=honeypot sourcetype=cowrie:json", "table": "Cowrie_CL", "new": "CowrieNew"},
+    "suricata": {"spl": "index=honeypot sourcetype=suricata:alert", "table": "Suricata_CL",
+                 "new": "SuricataNew"},
+}
+SPL_SCOPE = SOURCES["cowrie"]["spl"]
+KQL_TABLE = SOURCES["cowrie"]["table"]
 RE2_UNSAFE = re.compile(r"\\[1-9]|\(\?[=!]|\(\?<[=!]|\(\?>|\\[gk]<")
 
 
@@ -65,6 +76,26 @@ class RuleFile:
         self.base = {d["name"]: d for d in self.docs if "correlation" not in d and "name" in d}
         if self.is_correlation and len(self.docs) != len(self.base) + 1:
             raise BuildError(f"{path.name}: base rules of a correlation need a name")
+        for d in self.docs:
+            if "correlation" not in d and product(d) not in SOURCES:
+                raise BuildError(f"{path.name}: logsource.product must be one of {sorted(SOURCES)}")
+
+    def product_of(self, name=None):
+        """logsource.product of a base rule; without a name, of the rule as a whole (one source)."""
+        if name:
+            return product(self.base[name])
+        if not self.is_correlation:
+            return product(self.main)
+        if len(self.products) != 1:
+            raise BuildError(f"{self.path.name}: reads several log sources; name the base rule")
+        return self.products[0]
+
+    @property
+    def products(self):
+        """The log sources the rule reads, in a stable order."""
+        if not self.is_correlation:
+            return [self.product_of()]
+        return sorted({product(self.base[n]) for n in self.main["correlation"]["rules"]})
 
     @property
     def techniques(self):
@@ -75,6 +106,15 @@ class RuleFile:
     def tactics(self):
         return [t.split(".", 1)[1] for t in self.main.get("tags", [])
                 if t.startswith("attack.") and not re.fullmatch(r"attack\.t\d{4}(\.\d{3})?", t)]
+
+
+def product(doc):
+    return (doc.get("logsource") or {}).get("product")
+
+
+def event_source(ev):
+    """Which log source a test event belongs to: Suricata alerts carry a signature_id."""
+    return "suricata" if "signature_id" in ev else "cowrie"
 
 
 def load_rules():
@@ -145,18 +185,32 @@ def run_tests(rf):
 # ---------------------------------------------------------------- conversion
 
 def scope_spl(query, scope):
-    """Put the index/sourcetype constraint where Splunk needs it."""
+    """Put the index/sourcetype constraint where Splunk needs it.
+
+    `scope` is one string, or a function from a base rule's name to its scope: a correlation's
+    subsearches each end with `eval event_type="<base rule>"`, which says which source it reads.
+    """
     q = query.strip()
+    pick = scope if callable(scope) else (lambda name: scope)
     if q.startswith("| multisearch"):
-        return q.replace("[ search ", f"[ search {scope} ")
-    return f"{scope}\n{q}" if q.startswith("|") else f"{scope} {q}"
+        head, *subs = q.split("[ search ")
+        out = []
+        for sub in subs:
+            m = re.search(r'\| eval event_type="([^"]+)" \]', sub)
+            if not m:
+                raise BuildError("multisearch subsearch without an event_type")
+            out.append(f"[ search {pick(m.group(1))} {sub}")
+        return head + "".join(out)
+    return f"{pick(None)}\n{q}" if q.startswith("|") else f"{pick(None)} {q}"
 
 
-def to_spl(rf, scope=SPL_SCOPE):
+def to_spl(rf, scopes=None):
+    """SPL for the rule; `scopes` maps a product to its scope (default: SOURCES)."""
+    scopes = scopes or {p: s["spl"] for p, s in SOURCES.items()}
     queries = SplunkBackend().convert(rf.collection)
     if len(queries) != 1:
         raise BuildError(f"{rf.name}: expected one Splunk query, got {len(queries)}")
-    return re.sub(r"\n{2,}", "\n", scope_spl(queries[0], scope))
+    return re.sub(r"\n{2,}", "\n", scope_spl(queries[0], lambda name: scopes[rf.product_of(name)]))
 
 
 def kql_filter(doc):
@@ -166,7 +220,19 @@ def kql_filter(doc):
     return out[0]
 
 
-def kql_correlation(rf, table=KQL_TABLE):
+def kql_tables(tables):
+    """{product: table or let-bound name}; a plain string is the table for every product."""
+    if tables is None:
+        return {p: s["table"] for p, s in SOURCES.items()}
+    if isinstance(tables, str):
+        return {p: tables for p in SOURCES}
+    return tables
+
+
+def kql_correlation(rf, tables=None, new_only=False):
+    """KQL for a correlation. With new_only, the tables carry an Ingested column and only groups
+    with an event ingested in the last hour are kept (see sentinel_rule)."""
+    tables = kql_tables(tables)
     corr = rf.main["correlation"]
     span, by = corr["timespan"], ", ".join(corr.get("group-by", []))
     names = corr["rules"]
@@ -181,28 +247,36 @@ def kql_correlation(rf, table=KQL_TABLE):
         return " and ".join(f"{value_name} {ops[k]} {v}" for k, v in c.items() if k != "field")
 
     if kind in ("event_count", "value_count"):
+        if len(rf.products) != 1:
+            raise BuildError(f"{rf.name}: a {kind} correlation must read one log source")
+        table = tables[rf.products[0]]
         where = " or ".join(f"({kql_filter(rf.base[n])})" for n in names)
         agg = "count()" if kind == "event_count" else f"dcount({corr['condition']['field']})"
         return (f"{table}\n| where {where}\n| summarize {kind} = {agg}{keep_ip} by bin(TimeGenerated, {span}), {by}"
                 f"\n| where {cond(kind)}")
     if kind == "temporal":
-        parts = ",\n    ".join(f'({table} | where {kql_filter(rf.base[n])} | extend event_type = "{n}")'
-                               for n in names)
-        return (f"union\n    {parts}\n| summarize event_type_count = dcount(event_type){keep_ip} "
-                f"by bin(TimeGenerated, {span}), {by}\n| where event_type_count >= {len(names)}")
+        parts = ",\n    ".join(f'({tables[rf.product_of(n)]} | where {kql_filter(rf.base[n])}'
+                               f' | extend event_type = "{n}")' for n in names)
+        if len(rf.products) > 1 and "src_ip" not in corr.get("group-by", []):
+            raise BuildError(f"{rf.name}: a correlation across log sources must group by src_ip")
+        new = ", new_events = countif(Ingested > ago(1h))" if new_only else ""
+        return (f"union\n    {parts}\n| summarize event_type_count = dcount(event_type){keep_ip}{new} "
+                f"by bin(TimeGenerated, {span}), {by}\n| where event_type_count >= {len(names)}"
+                + ("\n| where new_events > 0" if new_only else ""))
     raise BuildError(f"{rf.name}: no KQL template for correlation type {kind!r}")
 
 
-def to_kql(rf, table=KQL_TABLE):
-    """KQL for the rule; `table` can be a table or a let-bound expression."""
+def to_kql(rf, tables=None, new_only=False):
+    """KQL for the rule; `tables` maps a product to a table or let-bound name (default: SOURCES)."""
     if rf.is_correlation:
-        return kql_correlation(rf, table)
-    return f"{table}\n| where {kql_filter(rf.main)}"
+        return kql_correlation(rf, tables, new_only)
+    return f"{kql_tables(tables)[rf.product_of()]}\n| where {kql_filter(rf.main)}"
 
 
 # Sentinel scheduled analytics rules. Events reach the workspace in batches (every 10 minutes from the
 # honeypot), so a rule that only looked at TimeGenerated in its window would miss late events. Each run
 # instead looks at what was *ingested* in the last hour; the 2 h query period covers their TimeGenerated.
+# A correlation across Cowrie and Suricata reads the whole period instead, see sentinel_rule().
 SENTINEL_FREQUENCY, SENTINEL_PERIOD = "PT1H", "PT2H"
 SENTINEL_SEVERITY = {"critical": "High", "high": "High", "medium": "Medium", "low": "Low",
                      "informational": "Informational"}
@@ -210,7 +284,7 @@ SENTINEL_SEVERITY = {"critical": "High", "high": "High", "medium": "Medium", "lo
 # and Defense Impairment, but it already checks techniques against v20 and refuses e.g. T1685 under
 # DefenseEvasion. So those two tactics are left out, along with techniques that belong only to them;
 # the Sigma rules keep the full v20 tags.
-SENTINEL_TACTICS = {"initial-access": "InitialAccess", "execution": "Execution", "persistence": "Persistence",
+SENTINEL_TACTICS = {"reconnaissance": "Reconnaissance", "initial-access": "InitialAccess", "execution": "Execution", "persistence": "Persistence",
                     "privilege-escalation": "PrivilegeEscalation", "credential-access": "CredentialAccess",
                     "discovery": "Discovery", "lateral-movement": "LateralMovement", "collection": "Collection",
                     "command-and-control": "CommandAndControl", "exfiltration": "Exfiltration",
@@ -226,8 +300,18 @@ def sentinel_rule(rf):
                          if any(tac in SENTINEL_TACTICS for tac in v20.get(t, []))})
     # One result row, and so one alert, per source IP and run; the playbooks in soar/ enrich and triage
     # per IP. Every query keeps src_ip (correlations carry it with take_any, see kql_correlation).
-    query = ("// Only events ingested since the last run (see tools/build.py)\n"
-             f"let CowrieNew = {KQL_TABLE} | where ingestion_time() > ago(1h);\n" + to_kql(rf, "CowrieNew")
+    # Across log sources the two halves arrive from separate shippers and can land in different
+    # runs, so such a rule reads the whole query period and keeps groups with a newly ingested event.
+    cross = len(rf.products) > 1
+    if cross:
+        lets = "".join(f"let {SOURCES[p]['new']} = {SOURCES[p]['table']} | extend Ingested = ingestion_time();\n"
+                       for p in rf.products)
+        head = "// Groups with at least one event ingested since the last run (see tools/build.py)\n"
+    else:
+        lets = "".join(f"let {SOURCES[p]['new']} = {SOURCES[p]['table']} | where ingestion_time() > ago(1h);\n"
+                       for p in rf.products)
+        head = "// Only events ingested since the last run (see tools/build.py)\n"
+    query = (head + lets + to_kql(rf, {p: SOURCES[p]["new"] for p in rf.products}, new_only=cross)
              + "\n// One alert per source IP\n"
                "| summarize Matches = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated)"
                " by src_ip")
