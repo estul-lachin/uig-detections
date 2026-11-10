@@ -94,3 +94,5 @@ pre.code code { background: none; padding: 0; font-size: inherit; }
   .site-header .wrap { flex-wrap: wrap; height: auto; padding-top: 10px; padding-bottom: 10px; row-gap: 2px; }
   h1 { font-size: 1.6rem; }
 }
+
+main.wrap.notfound { padding-top: 64px; }

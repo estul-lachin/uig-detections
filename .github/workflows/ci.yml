@@ -22,15 +22,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
       # SOAR numbers for the site: an OIDC login whose only role is Log Analytics Reader on the workspace
       # (soar/grant-ci.sh). Only on main; if it fails, the site is built without the SOAR section.
-      - uses: azure/login@v2
+      - uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2.3.1
         id: azure
         if: github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
         continue-on-error: true
@@ -49,7 +49,7 @@ jobs:
           az bicep install
           az bicep lint -f soar/main.bicep --diagnostics-format sarif | python3 -c 'import json,sys; r=json.load(sys.stdin)["runs"][0]["results"]; [print(x["ruleId"], x["message"]["text"]) for x in r]; sys.exit(bool(r))'
           for f in soar/*.sh; do bash -n "$f"; done
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         if: github.ref == 'refs/heads/main'
         with:
           path: _site
@@ -63,4 +63,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
