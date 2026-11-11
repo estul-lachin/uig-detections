@@ -61,6 +61,7 @@ def page(title, body, depth, description):
     <a class="brand" href="https://uig.me/">Estul Lachin</a>
     <nav>
       <a href="https://lab.uig.me/">Labs</a>
+      <a href="https://lab.uig.me/timeline/">Timeline</a>
       <a href="https://honeypot.uig.me/">Honeypot</a>
       <a href="{rel or './'}" aria-current="page">Detections</a>
     </nav>
