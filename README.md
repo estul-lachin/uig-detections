@@ -64,14 +64,18 @@ After changing `tools/sigma_eval.py`, copy it to uig-honeypot's `vps/sigma_eval.
    `azure/suricata.sh --test` sets up the Suricata one), runs each rule's KQL scoped to that rule's events,
    and requires the same result. All 17 rules agree with the evaluator in both Splunk and Sentinel.
 6. **Deploy**: `tools/sentinel_deploy.py` creates or updates one scheduled analytics rule per Sigma rule.
-   The honeypot ships new events every 10 minutes (uig-honeypot's `vps/sentinel.py`), so each hourly run
-   looks at what was *ingested* in the last hour (`ingestion_time()`) instead of a TimeGenerated window
-   that would miss late events. Each run raises one alert per source IP (the IP is mapped as an entity
+   The honeypot ships new events every 10 minutes (uig-honeypot's `vps/sentinel.py`), so each run, every
+   15 minutes, looks at what was *ingested* since the previous run (`ingestion_time()`) instead of a
+   TimeGenerated window that would miss late events. Sentinel runs a query about 5 minutes after the end of
+   its window, with `now()` set to that end, so the window is bounded on both sides
+   (`ingestion_time() > ago(15m) and ingestion_time() <= now()`); with only the lower bound, events ingested in
+   those 5 minutes were alerted twice. Hourly runs made a Cowrie event that just missed one wait up to 66 minutes
+   to become an incident ([the incident report](https://uig.me/notes/telnet-dropper-incident/) that found both). Each run raises one alert per source IP (the IP is mapped as an entity
    and named in the alert title, with the match count and first/last time as custom details), and the
    same rule firing again for the same IP within a day joins the open incident instead of opening a new one.
    A correlation across Cowrie and Suricata is the exception: the two halves come from separate shippers
-   and can land in different hourly runs, so it reads the whole two-hour query period and keeps only the
-   groups with at least one event ingested in the last hour.
+   and can land in different runs, so it reads the whole two-hour query period (up to `now()`) and keeps only
+   the groups with at least one event ingested since the previous run.
 
 ```
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt

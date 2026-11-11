@@ -194,7 +194,7 @@ resource e2eRule 'Microsoft.SecurityInsights/alertRules@2024-03-01' = {
     description: 'Fires only on synthetic events written by tools/soar_e2e.py (sensor soar-e2e:<run>).'
     severity: 'Low'
     enabled: true
-    query: 'Cowrie_Test_CL\n| where ingestion_time() > ago(5m) and sensor startswith "soar-e2e:"\n| summarize Matches = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated) by src_ip'
+    query: 'Cowrie_Test_CL\n| where ingestion_time() > ago(5m) and ingestion_time() <= now() and sensor startswith "soar-e2e:"\n| summarize Matches = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated) by src_ip'
     queryFrequency: 'PT5M'
     queryPeriod: 'PT1H'
     triggerOperator: 'GreaterThan'

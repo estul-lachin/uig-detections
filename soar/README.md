@@ -15,11 +15,14 @@ grant-ci.sh            let CI read the workspace for the site's numbers (OIDC, n
 
 | Playbook | Run by | Does |
 |---|---|---|
-| `pb-uig-enrich` | automation rule "SOAR: enrich every new incident" | looks the IP up in AbuseIPDB and in the last 30 days of `Cowrie_CL`, writes one comment, adds tags, then triages (below) |
+| `pb-uig-enrich` | automation rule "SOAR: enrich every new incident" | looks the IP up in AbuseIPDB and in the last 30 days of `Cowrie_CL`, writes one comment, adds tags, then triages (below). If the IP has no honeypot sessions yet, it waits 10 minutes and queries once more (see below) |
 | `pb-uig-notify` | `pb-uig-enrich`, for High incidents | sends the incident's title, tactics, tags and portal link to Telegram (plain text), tags `soar:notified` |
 
 `pb-uig-enrich` tags: `abuse:0`, `abuse:1-24`, `abuse:25-74`, `abuse:75-100` (or `abuse:unknown` when the
 lookup fails), `has-download` when the IP downloaded a file, `tor` for Tor exits, and `soar:enriched`.
+A Suricata-only incident can be created before the same IP's Cowrie events arrive (they ship every 10
+minutes), so a first query with 0 sessions is repeated once after 10 minutes; the comment says when the data
+was queried. Incidents from Cowrie rules always have sessions and are enriched within seconds.
 If AbuseIPDB or the query fails, it still comments and tags with what it has. Commands in the comment are
 HTML-escaped in the KQL, since attackers choose them.
 
@@ -54,7 +57,8 @@ by hand and never fired on real incidents.)
 test" analytics rule turns it into a Low incident. It then checks that the incident was enriched
 (comment, `soar:enriched`, `abuse:*`), was not auto-closed and was not sent to Telegram, and closes it as
 Benign Positive with the tag `soar:e2e-test`. It then waits past the rule's next run to check that the
-same event does not raise a second incident. Expect 15 to 25 minutes.
+same event does not raise a second incident. Expect 25 to 35 minutes: the test IP has no honeypot
+sessions, so the playbook waits its 10 minutes.
 
 ```
 .venv/bin/python tools/soar_e2e.py

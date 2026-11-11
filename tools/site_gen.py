@@ -311,7 +311,7 @@ def render_rule(rf, result, spl, kql, hits=None):
 <h2>Microsoft Sentinel KQL</h2>
 <pre class="code"><code>{e(kql.strip())}</code></pre>
 <p class="meta">{tables_note(rf)} Verified in
-  Microsoft Sentinel against the test events, and deployed there as a scheduled analytics rule that runs hourly
+  Microsoft Sentinel against the test events, and deployed there as a scheduled analytics rule that runs every 15 minutes
   on the live honeypot feed. <a href="{REPO}/blob/main/dist/kql/{rf.name}.kql">dist/kql/{e(rf.name)}.kql</a> ·
   <a href="{REPO}/blob/main/dist/sentinel/{rf.name}.json">analytics rule</a></p>
 """

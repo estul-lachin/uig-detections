@@ -12,7 +12,8 @@ soar/main.bicep) turns it into a Low incident, and the script then checks what S
   - the test rule raises it once (no duplicate incident on its next run)
 
 Then it closes the incident as a test (Benign Positive, tag soar:e2e-test), so the published numbers
-can leave test incidents out. Takes 15 to 25 minutes, mostly ingestion and the rule's 5-minute schedule.
+can leave test incidents out. Takes 25 to 35 minutes: ingestion, the rule's 5-minute schedule, and the playbook's 10-minute wait
+(the documentation IP has no honeypot sessions, so it waits for one more Cowrie batch).
 Uses the Azure CLI's login.
 
   python tools/soar_e2e.py [--resource-group rg-uig-sentinel] [--workspace law-uig-honeypot]
@@ -30,11 +31,11 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from sentinel_check import Workspace, az, token  # noqa: E402
+from sentinel_check import TEST, Workspace, az, token  # noqa: E402
 
 API = "api-version=2025-09-01"
 WAIT_INCIDENT = 25 * 60
-WAIT_ENRICH = 6 * 60
+WAIT_ENRICH = 16 * 60  # a source with no honeypot sessions waits 10 minutes for Cowrie data first
 
 
 def arm(method, url, tok, body=None):
@@ -76,7 +77,7 @@ def main(argv=None):
     ip = f"192.0.2.{random.randint(1, 254)}"
     now = datetime.datetime.now(datetime.timezone.utc)
     start = now - datetime.timedelta(minutes=1)
-    ws.upload([{"timestamp": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), "eventid": "cowrie.command.input",
+    ws.upload(TEST["cowrie"]["stream"], [{"timestamp": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), "eventid": "cowrie.command.input",
                 "src_ip": ip, "src_port": 50000, "dst_port": 22, "session": run.split(":")[1],
                 "protocol": "ssh", "input": "echo soar end-to-end test", "sensor": run}])
     print(f"wrote a test event from {ip} ({run}); waiting for the incident")

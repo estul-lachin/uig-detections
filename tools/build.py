@@ -231,7 +231,7 @@ def kql_tables(tables):
 
 def kql_correlation(rf, tables=None, new_only=False):
     """KQL for a correlation. With new_only, the tables carry an Ingested column and only groups
-    with an event ingested in the last hour are kept (see sentinel_rule)."""
+    with an event ingested since the last run are kept (see sentinel_rule)."""
     tables = kql_tables(tables)
     corr = rf.main["correlation"]
     span, by = corr["timespan"], ", ".join(corr.get("group-by", []))
@@ -259,7 +259,7 @@ def kql_correlation(rf, tables=None, new_only=False):
                                f' | extend event_type = "{n}")' for n in names)
         if len(rf.products) > 1 and "src_ip" not in corr.get("group-by", []):
             raise BuildError(f"{rf.name}: a correlation across log sources must group by src_ip")
-        new = ", new_events = countif(Ingested > ago(1h))" if new_only else ""
+        new = f", new_events = countif(Ingested > ago({SENTINEL_WINDOW}))" if new_only else ""
         return (f"union\n    {parts}\n| summarize event_type_count = dcount(event_type){keep_ip}{new} "
                 f"by bin(TimeGenerated, {span}), {by}\n| where event_type_count >= {len(names)}"
                 + ("\n| where new_events > 0" if new_only else ""))
@@ -275,9 +275,16 @@ def to_kql(rf, tables=None, new_only=False):
 
 # Sentinel scheduled analytics rules. Events reach the workspace in batches (every 10 minutes from the
 # honeypot), so a rule that only looked at TimeGenerated in its window would miss late events. Each run
-# instead looks at what was *ingested* in the last hour; the 2 h query period covers their TimeGenerated.
-# A correlation across Cowrie and Suricata reads the whole period instead, see sentinel_rule().
-SENTINEL_FREQUENCY, SENTINEL_PERIOD = "PT1H", "PT2H"
+# instead looks at what was *ingested* since the previous run; the 2 h query period covers their
+# TimeGenerated. A correlation across Cowrie and Suricata reads the whole period, see sentinel_rule().
+#
+# Sentinel runs the query about 5 minutes after the end of its window, with now() set to that end.
+# Without the upper bound, events ingested in those 5 minutes were seen by this run and again by the next
+# one (12 duplicate alerts in the first three days); with it the windows are back to back.
+# Every 15 minutes rather than hourly: a Cowrie batch that arrived just after an hourly run used to wait
+# 66 minutes to become an incident.
+SENTINEL_FREQUENCY, SENTINEL_PERIOD = "PT15M", "PT2H"
+SENTINEL_WINDOW = "15m"  # = SENTINEL_FREQUENCY, in KQL
 SENTINEL_SEVERITY = {"critical": "High", "high": "High", "medium": "Medium", "low": "Low",
                      "informational": "Informational"}
 # Sentinel's tactic names. Its API (up to 2025-10-01-preview) has no value yet for ATT&CK v20's Stealth
@@ -304,11 +311,13 @@ def sentinel_rule(rf):
     # runs, so such a rule reads the whole query period and keeps groups with a newly ingested event.
     cross = len(rf.products) > 1
     if cross:
-        lets = "".join(f"let {SOURCES[p]['new']} = {SOURCES[p]['table']} | extend Ingested = ingestion_time();\n"
+        lets = "".join(f"let {SOURCES[p]['new']} = {SOURCES[p]['table']}"
+                       " | extend Ingested = ingestion_time() | where Ingested <= now();\n"
                        for p in rf.products)
         head = "// Groups with at least one event ingested since the last run (see tools/build.py)\n"
     else:
-        lets = "".join(f"let {SOURCES[p]['new']} = {SOURCES[p]['table']} | where ingestion_time() > ago(1h);\n"
+        lets = "".join(f"let {SOURCES[p]['new']} = {SOURCES[p]['table']}"
+                       f" | where ingestion_time() > ago({SENTINEL_WINDOW}) and ingestion_time() <= now();\n"
                        for p in rf.products)
         head = "// Only events ingested since the last run (see tools/build.py)\n"
     query = (head + lets + to_kql(rf, {p: SOURCES[p]["new"] for p in rf.products}, new_only=cross)

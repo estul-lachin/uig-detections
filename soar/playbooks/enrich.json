@@ -170,7 +170,7 @@
         ]
       }
     },
-    "Activity": {
+    "Activity_first": {
       "type": "Compose",
       "inputs": "@if(and(equals(actions('Honeypot_activity')?['status'], 'Succeeded'), greater(length(coalesce(body('Honeypot_activity')?['tables']?[0]?['rows'], json('[]'))), 0)), body('Honeypot_activity')['tables'][0]['rows'][0], null)",
       "runAfter": {
@@ -178,6 +178,77 @@
           "Succeeded",
           "Failed",
           "TimedOut"
+        ]
+      }
+    },
+    "Wait_for_honeypot_data": {
+      "type": "If",
+      "expression": {
+        "or": [
+          {
+            "equals": [
+              "@outputs('Activity_first')",
+              null
+            ]
+          },
+          {
+            "equals": [
+              "@if(equals(outputs('Activity_first'), null), 0, int(outputs('Activity_first')[0]))",
+              0
+            ]
+          }
+        ]
+      },
+      "actions": {
+        "Delay_for_honeypot_data": {
+          "type": "Wait",
+          "inputs": {
+            "interval": {
+              "count": 10,
+              "unit": "Minute"
+            }
+          },
+          "runAfter": {}
+        },
+        "Honeypot_activity_again": {
+          "type": "Http",
+          "inputs": {
+            "method": "POST",
+            "uri": "https://management.azure.com@{parameters('workspaceId')}/api/query?api-version=2020-08-01",
+            "body": {
+              "timespan": "P30D",
+              "query": "let ip = \"@{outputs('IP')}\";\nlet esc = (s: string) { replace_string(replace_string(replace_string(s, \"&\", \"&amp;\"), \"<\", \"&lt;\"), \">\", \"&gt;\") };\nCowrie_CL\n| where src_ip == ip\n| summarize Sessions = dcount(session), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated),\n    LoginsAccepted = countif(eventid == \"cowrie.login.success\"), LoginsFailed = countif(eventid == \"cowrie.login.failed\"),\n    Commands = countif(eventid == \"cowrie.command.input\"), Downloads = countif(eventid startswith \"cowrie.session.file_download\"),\n    Protocols = make_set(protocol), SampleCommands = make_set_if(esc(substring(input, 0, 160)), eventid == \"cowrie.command.input\", 5)\n| extend Protocols = strcat_array(Protocols, \", \"), SampleCommands = strcat_array(SampleCommands, \"</code><br><code>\")"
+            },
+            "authentication": {
+              "type": "ManagedServiceIdentity",
+              "audience": "https://management.azure.com/"
+            }
+          },
+          "runAfter": {
+            "Delay_for_honeypot_data": [
+              "Succeeded"
+            ]
+          }
+        }
+      },
+      "else": {
+        "actions": {}
+      },
+      "runAfter": {
+        "Activity_first": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Activity": {
+      "type": "Compose",
+      "inputs": "@if(and(equals(actions('Honeypot_activity_again')?['status'], 'Succeeded'), greater(length(coalesce(body('Honeypot_activity_again')?['tables']?[0]?['rows'], json('[]'))), 0)), body('Honeypot_activity_again')['tables'][0]['rows'][0], outputs('Activity_first'))",
+      "runAfter": {
+        "Wait_for_honeypot_data": [
+          "Succeeded",
+          "Failed",
+          "TimedOut",
+          "Skipped"
         ]
       }
     },
@@ -216,7 +287,7 @@
     },
     "Comment": {
       "type": "Compose",
-      "inputs": "<p><b>SOAR enrichment for @{outputs('IP')}</b></p><p><b>AbuseIPDB</b>: @{if(equals(outputs('Abuse'), null), 'lookup failed', concat('score ', string(outputs('Abuse')?['abuseConfidenceScore']), '/100, ', string(outputs('Abuse')?['totalReports']), ' reports from ', string(outputs('Abuse')?['numDistinctUsers']), ' users, last reported ', coalesce(string(outputs('Abuse')?['lastReportedAt']), 'never'), '<br>', coalesce(string(outputs('Abuse')?['isp']), '?'), ' · ', coalesce(string(outputs('Abuse')?['usageType']), '?'), ' · ', coalesce(string(outputs('Abuse')?['countryCode']), '?'), if(equals(outputs('Abuse')?['isTor'], true), ' · Tor exit', '')))} · <a href=\"https://www.abuseipdb.com/check/@{outputs('IP')}\">AbuseIPDB</a></p><p><b>Honeypot, last 30 days</b>: @{if(equals(outputs('Activity'), null), 'query failed or no events', concat(string(outputs('Activity')[0]), ' sessions (', string(outputs('Activity')[7]), '), ', string(outputs('Activity')[3]), ' logins accepted, ', string(outputs('Activity')[4]), ' failed, ', string(outputs('Activity')[5]), ' commands, ', string(outputs('Activity')[6]), ' downloads<br>first seen ', string(outputs('Activity')[1]), ', last seen ', string(outputs('Activity')[2]), if(empty(outputs('Activity')[8]), '', concat('<br>Sample commands:<br><code>', outputs('Activity')[8], '</code>'))))}</p><p>Tags: @{join(body('Label_names'), ', ')}</p>",
+      "inputs": "<p><b>SOAR enrichment for @{outputs('IP')}</b></p><p><b>AbuseIPDB</b>: @{if(equals(outputs('Abuse'), null), 'lookup failed', concat('score ', string(outputs('Abuse')?['abuseConfidenceScore']), '/100, ', string(outputs('Abuse')?['totalReports']), ' reports from ', string(outputs('Abuse')?['numDistinctUsers']), ' users, last reported ', coalesce(string(outputs('Abuse')?['lastReportedAt']), 'never'), '<br>', coalesce(string(outputs('Abuse')?['isp']), '?'), ' · ', coalesce(string(outputs('Abuse')?['usageType']), '?'), ' · ', coalesce(string(outputs('Abuse')?['countryCode']), '?'), if(equals(outputs('Abuse')?['isTor'], true), ' · Tor exit', '')))} · <a href=\"https://www.abuseipdb.com/check/@{outputs('IP')}\">AbuseIPDB</a></p><p><b>Honeypot, last 30 days</b> (queried @{formatDateTime(utcNow(), 'yyyy-MM-dd HH:mm')} UTC): @{if(equals(outputs('Activity'), null), 'query failed or no events', concat(string(outputs('Activity')[0]), ' sessions (', string(outputs('Activity')[7]), '), ', string(outputs('Activity')[3]), ' logins accepted, ', string(outputs('Activity')[4]), ' failed, ', string(outputs('Activity')[5]), ' commands, ', string(outputs('Activity')[6]), ' downloads<br>first seen ', string(outputs('Activity')[1]), ', last seen ', string(outputs('Activity')[2]), if(empty(outputs('Activity')[8]), '', concat('<br>Sample commands:<br><code>', outputs('Activity')[8], '</code>'))))}</p><p>Tags: @{join(body('Label_names'), ', ')}</p>",
       "runAfter": {
         "Label_names": [
           "Succeeded"
