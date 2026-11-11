@@ -39,9 +39,9 @@
       "aggregationKind": "AlertPerResult"
     },
     "incidentConfiguration": {
-      "createIncident": true,
+      "createIncident": false,
       "groupingConfiguration": {
-        "enabled": true,
+        "enabled": false,
         "reopenClosedIncident": false,
         "lookbackDuration": "P1D",
         "matchingMethod": "AllEntities"

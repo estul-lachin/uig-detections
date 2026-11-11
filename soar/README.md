@@ -1,8 +1,9 @@
 # SOAR
 
 Playbooks that work the Sentinel incidents raised by the rules in `dist/sentinel/`. The honeypot only sees
-attacks, so nothing here blocks anything: the playbooks enrich, triage and report. Every alert is about one
-source IP (see the Deploy step in the main README), so each playbook works per IP.
+attacks, so nothing here blocks anything: the playbooks enrich, triage and report. Every incident is about one
+source IP and holds the alerts of all the rules that fired on it (*Honeypot activity*, see the Deploy step in
+the main README), so each playbook works per IP.
 
 ```
 main.bicep             Key Vault, the Sentinel API connection, and the playbooks (Logic Apps, Consumption)

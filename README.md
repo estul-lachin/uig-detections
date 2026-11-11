@@ -71,8 +71,15 @@ After changing `tools/sigma_eval.py`, copy it to uig-honeypot's `vps/sigma_eval.
    (`ingestion_time() > ago(15m) and ingestion_time() <= now()`); with only the lower bound, events ingested in
    those 5 minutes were alerted twice. Hourly runs made a Cowrie event that just missed one wait up to 66 minutes
    to become an incident ([the incident report](https://uig.me/notes/telnet-dropper-incident/) that found both). Each run raises one alert per source IP (the IP is mapped as an entity
-   and named in the alert title, with the match count and first/last time as custom details), and the
-   same rule firing again for the same IP within a day joins the open incident instead of opening a new one.
+   and named in the alert title, with the match count and first/last time as custom details).
+   The detection rules raise no incidents themselves. Sentinel groups alerts only within one rule, so one
+   dropper session used to open an incident for every rule that caught it (six in the incident report). A
+   further rule, *Honeypot activity* (`dist/sentinel/_incident_per_ip.json`, from `incident_per_ip_rule()` in
+   `build.py`), reads their new alerts from `SecurityAlert` every 5 minutes and raises one alert per IP with the
+   highest severity, the rules that fired, and their tactics and techniques. Its incidents group by IP and
+   severity over a day: one incident per attacker and day, plus a new one if a more severe alert arrives,
+   because Sentinel doesn't raise an open incident's severity when a more severe alert joins it. Over the two days
+   before the change, the 251 incidents came from 74 IPs.
    A correlation across Cowrie and Suricata is the exception: the two halves come from separate shippers
    and can land in different runs, so it reads the whole two-hour query period (up to `now()`) and keeps only
    the groups with at least one event ingested since the previous run.
