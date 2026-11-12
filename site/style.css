@@ -100,8 +100,16 @@ h3 { font-size: 1rem; margin: 0 0 6px; }
 }
 
 @media print {
+  /* browsers drop backgrounds when printing: switch to dark ink on white paper */
+  :root {
+    --bg: #fff; --surface: #fff; --text: #111; --muted: #444; --dim: #555; --border: #bbb; --border-strong: #888;
+    --accent: #0a6b34; --accent-2: #0b5c8a; --ok: #0a6b34; --chip: #f2f2f2; --code-bg: #f5f5f5; --glow: none;
+    color-scheme: light;
+  }
+  body { background: #fff; }
   body::before, .brand::after { display: none; }
-  .site-header { position: static; }
+  * { text-shadow: none !important; box-shadow: none !important; }
+  .site-header { position: static; background: #fff; backdrop-filter: none; }
 }
 
 
