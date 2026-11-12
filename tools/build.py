@@ -357,15 +357,47 @@ def sentinel_rule(rf):
 # severity, the rules that fired and their tactics and techniques; it groups by IP and severity over a day.
 # Severity is part of the grouping because Sentinel doesn't raise an incident's severity when a more severe
 # alert joins it: a High alert for an IP with an open Medium incident opens (and notifies) a High one.
+#
+# Severity: a rule's level says how bad the behaviour would be on a real server, and stays the same in
+# Splunk and Sentinel. On the honeypot most of it is the same few botnets every day: in the first days 65%
+# of the IP-days had a High alert, and their dropper sessions wrote only a handful of distinct files. So an
+# incident stays High only if its IP brought something new: a captured file (Cowrie's download or upload
+# shasum) or an exploit signature (the High Suricata rules' signature_id) that first appeared in the last
+# KNOWN_WINDOW and that this IP sent within NOVEL_WINDOW of that first time. Otherwise a High alert makes a
+# Medium incident, and the alert says why. The window is just under two days because Sentinel only allows
+# a query period of two days or more for rules that run hourly or less often, and this one runs every
+# 5 minutes; the botnets come back daily, and over the first days a 14-day window lowered the same alerts.
+# A file or signature unseen for 47 hours counts as new again.
 INCIDENT_RULE_ID = "5d0f8f8e-4c1a-4f0e-9a51-6b7e2c9d3a10"
 INCIDENT_FREQUENCY, INCIDENT_WINDOW = "PT5M", "5m"
+KNOWN_PERIOD, KNOWN_WINDOW, NOVEL_WINDOW = "PT47H", "47h", "2h"
+
+
+def novelty_query(rules):
+    """KQL `let`s ending in `novel`: per src_ip, the files and exploit signatures it was first to bring."""
+    t = SOURCES["cowrie"]["table"]
+    parts = [f'({t} | where TimeGenerated > ago({KNOWN_WINDOW}) and eventid in '
+             f'("cowrie.session.file_download", "cowrie.session.file_upload") and isnotempty(shasum)\n'
+             f'        | project TimeGenerated, src_ip, New = strcat("file ", substring(shasum, 0, 12)))']
+    t = SOURCES["suricata"]["table"]
+    for rf in rules:
+        if rf.is_correlation or rf.products != ["suricata"] or rf.main.get("level") not in ("high", "critical"):
+            continue
+        parts.append(f'({t} | where TimeGenerated > ago({KNOWN_WINDOW}) | where {kql_filter(rf.main)}\n'
+                     f'        | project TimeGenerated, src_ip, New = strcat("exploit signature ", tostring(signature_id)))')
+    return ("let seen = union\n    " + ",\n    ".join(parts) + ";\n"
+            "let novel = seen | summarize First = min(TimeGenerated) by New\n"
+            f"    | join kind=inner (seen | where TimeGenerated > ago({NOVEL_WINDOW})) on New\n"
+            f"    | where TimeGenerated < First + {NOVEL_WINDOW}\n"
+            "    | summarize Novel = make_set(New) by src_ip;\n")
 
 
 def incident_per_ip_rule(rules):
     ids = ", ".join(f'"{rf.main["id"]}"' for rf in rules)
     query = f"""// The detection rules' alerts ingested since the last run (see tools/build.py)
 let rules = dynamic([{ids}]);
-SecurityAlert
+// Files and exploit signatures this IP was the first to bring (see tools/build.py: Severity)
+{novelty_query(rules)}SecurityAlert
 | where ingestion_time() > ago({INCIDENT_WINDOW}) and ingestion_time() <= now()
 | where ProviderName == "ASI Scheduled Alerts" and tostring(split(AlertType, "_")[1]) in (rules)
 | mv-expand e = todynamic(Entities) | where tostring(e.Type) == "ip"
@@ -376,10 +408,16 @@ SecurityAlert
 | summarize Sev = max(Sev), Rules = make_set(Rule), TacticSet = make_set_if(trim(" ", Tactic), trim(" ", Tactic) !in ("", "Unknown")),
     TechniqueSet = make_set_if(Technique, isnotempty(Technique)), Alerts = dcount(SystemAlertId),
     FirstSeen = min(StartTime), LastSeen = max(EndTime) by src_ip
+| join kind=leftouter novel on src_ip
+| extend New = coalesce(array_length(Novel), 0) > 0
+| extend Triage = case(Sev == 3 and New, strcat("New: ", strcat_array(array_sort_asc(Novel), ", "), "."),
+        Sev == 3, "High rule, Medium incident: every file and exploit signature from this IP was already seen in the last {KNOWN_WINDOW}.",
+        ""),
+    Sev = iff(Sev == 3 and not(New), 2, Sev)
 | extend Severity = case(Sev == 3, "High", Sev == 2, "Medium", Sev == 1, "Low", "Informational"),
     RuleList = strcat_array(array_sort_asc(Rules), ", "), TacticList = strcat_array(TacticSet, ","),
     Techniques = tostring(TechniqueSet)
-| project src_ip, Severity, RuleList, TacticList, Techniques, Alerts, FirstSeen, LastSeen"""
+| project src_ip, Severity, RuleList, Triage, TacticList, Techniques, Alerts, FirstSeen, LastSeen"""
     return {"kind": "Scheduled", "properties": {
         "displayName": "Honeypot activity",
         "description": "One incident per source IP and severity, from the alerts of the detection rules "
@@ -388,7 +426,7 @@ SecurityAlert
         "enabled": True,
         "query": query,
         "queryFrequency": INCIDENT_FREQUENCY,
-        "queryPeriod": "PT1H",
+        "queryPeriod": KNOWN_PERIOD,
         "triggerOperator": "GreaterThan",
         "triggerThreshold": 0,
         "suppressionDuration": "PT5M",
@@ -397,11 +435,11 @@ SecurityAlert
         "techniques": [],
         "entityMappings": [{"entityType": "IP",
                             "fieldMappings": [{"identifier": "Address", "columnName": "src_ip"}]}],
-        "customDetails": {"Rules": "RuleList", "Alerts": "Alerts", "FirstSeen": "FirstSeen",
+        "customDetails": {"Rules": "RuleList", "Triage": "Triage", "Alerts": "Alerts", "FirstSeen": "FirstSeen",
                           "LastSeen": "LastSeen"},
         "alertDetailsOverride": {
             "alertDisplayNameFormat": "Honeypot activity from {{src_ip}}",
-            "alertDescriptionFormat": "Rules that fired: {{RuleList}}",
+            "alertDescriptionFormat": "Rules that fired: {{RuleList}}. {{Triage}}",
             "alertSeverityColumnName": "Severity",
             "alertTacticsColumnName": "TacticList",
             "alertDynamicProperties": [{"alertProperty": "Techniques", "value": "Techniques"}]},

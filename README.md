@@ -80,6 +80,14 @@ After changing `tools/sigma_eval.py`, copy it to uig-honeypot's `vps/sigma_eval.
    severity over a day: one incident per attacker and day, plus a new one if a more severe alert arrives,
    because Sentinel doesn't raise an open incident's severity when a more severe alert joins it. Over the two days
    before the change, the 251 incidents came from 74 IPs.
+   Its severity adds the honeypot's context to the rules' levels, which stay what the behaviour would mean on
+   a real server. In the first four days 65% of the attacker-days had a High alert, almost all from the same
+   few botnets: 35 IPs' sessions wrote only three distinct files. So an incident stays High only if its IP
+   brought something new, a captured file (Cowrie's `shasum`) or an exploit signature (the High Suricata
+   rules' `signature_id`) not seen in the 47 hours before (a rule that runs every 5 minutes can't query two
+   days or more); otherwise a High alert makes a Medium incident. The alert description says which
+   ("New: file 01ba4719c80b.") or why it was lowered. Replayed on those days, High went from 26-34 attackers
+   a day to 0-4.
    A correlation across Cowrie and Suricata is the exception: the two halves come from separate shippers
    and can land in different runs, so it reads the whole two-hour query period (up to `now()`) and keeps only
    the groups with at least one event ingested since the previous run.

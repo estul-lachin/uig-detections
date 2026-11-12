@@ -36,8 +36,10 @@ Triage:
 | after enrichment | severity Low and `abuse:75-100` | close as True Positive / Suspicious Activity, tag `soar:auto-closed` | `pb-uig-enrich`, in the same update as the tags |
 | after enrichment | severity High | run `pb-uig-notify` | `pb-uig-enrich` |
 
-Everything else stays New for an analyst. The steps that need the enrichment run inside the playbook
-rather than as "tag added" automation rules: changes made by a playbook that an automation rule started
+High means new: the *Honeypot activity* rule keeps an incident High only when its IP brought a file or an
+exploit signature not seen in the previous two days (see the main README), so Telegram gets the few
+incidents worth a look rather than every botnet's daily dropper. Everything else stays New for an analyst.
+The steps that need the enrichment run inside the playbook rather than as "tag added" automation rules: changes made by a playbook that an automation rule started
 do not fire update-triggered rules. (A first version did it that way; it worked when the playbook was run
 by hand and never fired on real incidents.)
 

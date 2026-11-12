@@ -182,7 +182,9 @@ def soar_section(soar):
 <p>Every incident these rules raise in Microsoft Sentinel goes through SOAR playbooks (Logic Apps, deployed
   with <a href="{REPO}/tree/main/soar">Bicep</a>). The honeypot only sees attacks, so they triage rather than
   block: each incident is enriched with AbuseIPDB and the source's activity on the honeypot, Low-severity
-  incidents from widely reported sources are closed, and High ones are assigned and sent to my phone.</p>
+  incidents from widely reported sources are closed, and High ones are assigned and sent to my phone. An
+  incident is High only when its source brought a file or an exploit the honeypot hasn't seen in two days;
+  the same botnets' daily droppers are Medium.</p>
 <div class="stats">
   {stat(e(str(soar["incidents"])), "incidents")}
   {stat(f'{soar.get("enriched_pct", 0)}%', "enriched" + (f", median {med} s after creation" if med is not None else ""))}
