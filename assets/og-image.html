@@ -3,22 +3,19 @@
 <html><head><meta charset="utf-8"><style>
   html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
   body {
-    background: radial-gradient(ellipse at 50% -10%, rgba(111,220,155,0.07), transparent 60%), #0b100d;
-    color: #d5e0d8; box-sizing: border-box; padding: 80px 90px; position: relative;
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    background: #faf9f6; border-top: 12px solid #0f766e;
+    color: #1f2328; box-sizing: border-box; padding: 72px 90px 80px; position: relative;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     display: flex; flex-direction: column;
   }
   .top { display: flex; align-items: center; gap: 24px; }
   .top img { width: 84px; height: 84px; }
-  .name { font-size: 38px; font-weight: 600; color: #9db0a3; }
-  .name::before { content: "~$ "; color: #6fdc9b; }
-  h1 { font-size: 84px; line-height: 1.05; margin: 56px 0 24px; letter-spacing: -0.02em; }
-  h1::before { content: "> "; color: #6fdc9b; }
-  h1::after { content: ""; display: inline-block; width: 0.5em; height: 0.9em; margin-left: 12px; vertical-align: -0.08em;
-    background: #6fdc9b; }
-  .by { font-size: 30px; color: #9db0a3; }
-  .url span { color: #365443; }
-  .url { margin-top: auto; font-size: 32px; color: #6fdc9b; }
+  .name { font-size: 38px; font-weight: 600; color: #4f5761; }
+  .name::before { content: "~$ "; color: #0f766e; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; }
+  h1 { font-size: 84px; line-height: 1.05; margin: 56px 0 24px; letter-spacing: -0.03em; font-weight: 700; }
+  .by { font-size: 32px; color: #4f5761; }
+  .url span { color: #cdc8bd; font-weight: 400; }
+  .url { margin-top: auto; font-size: 32px; font-weight: 600; color: #0f766e; }
 </style></head><body>
   <div class="top"><img src="favicon.svg" alt=""><span class="name">Estul Lachin</span></div>
   <h1>Detection-as-code</h1>
