@@ -3,26 +3,22 @@
 <html><head><meta charset="utf-8"><style>
   html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
   body {
-    background: radial-gradient(ellipse at 50% -10%, rgba(57,255,136,0.12), transparent 60%), #0a0f0b;
-    color: #cdeed6; box-sizing: border-box; padding: 80px 90px; position: relative;
+    background: radial-gradient(ellipse at 50% -10%, rgba(111,220,155,0.07), transparent 60%), #0b100d;
+    color: #d5e0d8; box-sizing: border-box; padding: 80px 90px; position: relative;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
     display: flex; flex-direction: column;
   }
-  body::before {
-    content: ""; position: absolute; inset: 0;
-    background: repeating-linear-gradient(to bottom, transparent 0, transparent 2px, rgba(0,0,0,0.25) 3px, transparent 4px);
-  }
   .top { display: flex; align-items: center; gap: 24px; }
   .top img { width: 84px; height: 84px; }
-  .name { font-size: 38px; font-weight: 600; color: #86a891; }
-  .name::before { content: "~$ "; color: #39ff88; }
+  .name { font-size: 38px; font-weight: 600; color: #9db0a3; }
+  .name::before { content: "~$ "; color: #6fdc9b; }
   h1 { font-size: 84px; line-height: 1.05; margin: 56px 0 24px; letter-spacing: -0.02em; }
-  h1::before { content: "> "; color: #39ff88; text-shadow: 0 0 14px rgba(57,255,136,0.6); }
+  h1::before { content: "> "; color: #6fdc9b; }
   h1::after { content: ""; display: inline-block; width: 0.5em; height: 0.9em; margin-left: 12px; vertical-align: -0.08em;
-    background: #39ff88; box-shadow: 0 0 14px rgba(57,255,136,0.6); }
-  .by { font-size: 30px; color: #86a891; }
-  .url span { color: #2f5a41; }
-  .url { margin-top: auto; font-size: 32px; color: #39ff88; text-shadow: 0 0 10px rgba(57,255,136,0.5); }
+    background: #6fdc9b; }
+  .by { font-size: 30px; color: #9db0a3; }
+  .url span { color: #365443; }
+  .url { margin-top: auto; font-size: 32px; color: #6fdc9b; }
 </style></head><body>
   <div class="top"><img src="favicon.svg" alt=""><span class="name">Estul Lachin</span></div>
   <h1>Detection-as-code</h1>

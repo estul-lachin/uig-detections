@@ -3,27 +3,27 @@
 
 
 :root {
-  --bg: #0a0f0b;
-  --surface: #0f1712;
-  --text: #cdeed6;
-  --muted: #86a891;
-  --dim: #6f8f79;
-  --border: #20392a;
-  --border-strong: #2f5a41;
-  --accent: #39ff88;
-  --accent-2: #4fd6ff;
-  --warn: #ffb347;
-  --danger: #ff5c7a;
-  --ok: #39ff88;
-  --chip: #12211a;
-  --code-bg: #0c1a12;
-  --glow: 0 0 6px rgba(57, 255, 136, 0.45);
+  --bg: #0b100d;
+  --surface: #111915;
+  --text: #d5e0d8;
+  --muted: #9db0a3;
+  --dim: #7a8d80;
+  --border: #223329;
+  --border-strong: #365443;
+  --accent: #6fdc9b;
+  --accent-2: #7cc4e4;
+  --warn: #e6b36a;
+  --danger: #ee8090;
+  --ok: #6fdc9b;
+  --chip: #16221c;
+  --code-bg: #0f1813;
+  --glow: none; /* no blurred text: it tires the eyes */
   --radius: 2px;
   --font: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --mono: var(--font);
   /* long-form prose (articles, READMEs) reads faster in a proportional face */
   --prose: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --high: #ff5c7a; --medium: #ffb347; --low: #4fd6ff;
+  --high: #ee8090; --medium: #e6b36a; --low: #7cc4e4;
   color-scheme: dark;
 }
 
@@ -37,17 +37,10 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(ellipse at 50% -10%, rgba(57, 255, 136, 0.07), transparent 60%),
+    radial-gradient(ellipse at 50% -10%, rgba(111, 220, 155, 0.04), transparent 60%),
     var(--bg);
   color: var(--text);
   font: 15px/1.7 var(--font);
-}
-
-/* CRT scanlines: static, decorative, never intercepts clicks */
-body::before {
-  content: ""; position: fixed; inset: 0; z-index: 100; pointer-events: none;
-  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) 2px,
-    rgba(0, 0, 0, 0.18) 3px, rgba(0, 0, 0, 0) 4px);
 }
 
 ::selection { background: var(--accent); color: var(--bg); }
@@ -62,7 +55,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; text-shadow: v
 [id] { scroll-margin-top: 72px; }
 
 .site-header {
-  border-bottom: 1px solid var(--border); background: rgba(10, 15, 11, 0.85);
+  border-bottom: 1px solid var(--border); background: rgba(11, 16, 13, 0.92);
   position: sticky; top: 0; z-index: 10; backdrop-filter: blur(6px);
 }
 .site-header .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
@@ -71,7 +64,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; text-shadow: v
 .brand::after {
   content: ""; display: inline-block; width: 0.55em; height: 1.05em; margin-left: 4px;
   vertical-align: -0.15em; background: var(--accent); box-shadow: var(--glow);
-  animation: blink 1.1s steps(1) infinite;
+  animation: blink 1.1s steps(1) 4; /* blinks a few times, then stays solid */
 }
 .brand:hover { text-decoration: none; }
 .site-header nav { display: flex; flex-wrap: wrap; gap: 6px 18px; }
@@ -109,7 +102,7 @@ h3 { font-size: 1rem; margin: 0 0 6px; }
     color-scheme: light;
   }
   body { background: #fff; }
-  body::before, .brand::after { display: none; }
+  .brand::after { display: none; }
   * { text-shadow: none !important; box-shadow: none !important; }
   .site-header { position: static; background: #fff; backdrop-filter: none; }
 }
@@ -147,7 +140,7 @@ table.coverage { width: 100%; border-collapse: collapse; font-size: 14px; }
 
 .rules { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .rule { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; min-width: 0; transition: border-color 0.15s, box-shadow 0.15s; }
-.rule:hover { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(57, 255, 136, 0.15), 0 0 18px rgba(57, 255, 136, 0.12); }
+.rule:hover { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(111, 220, 155, 0.09), 0 0 18px rgba(111, 220, 155, 0.07); }
 .rule-head a { color: var(--text); }
 .rule:hover .rule-head a { color: var(--accent); }
 .rule-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-weight: 600; }
